@@ -64,10 +64,47 @@ function syncToPortals(r, uuid) {
         p.div = clonedTemplate;
     });
 }
+function replacePortalsWithExits(n) {
+    n.childNodes.forEach(c => {
+        if (c instanceof PortalElement) {
+            const newChild = document.createElement('portal-exit');
+            newChild.uuid = c.uuid;
+            n.replaceChild(newChild, c);
+        }
+        else {
+            replacePortalsWithExits(c);
+        }
+    });
+}
+function replaceExitsWithPortals(r, n) {
+    const RECURSION_LIMIT = 8;
+    function go(depth, n) {
+        if (depth >= RECURSION_LIMIT) {
+            return;
+        }
+        n.childNodes.forEach(c => {
+            if (c instanceof PortalExit) {
+                const newChild = document.createElement('portal-element');
+                if (c.uuid === undefined) {
+                    throw new Error('undefined uuid in portal exit');
+                }
+                newChild.uuid = c.uuid;
+            }
+        });
+    }
+    go(0, n);
+}
 function syncFromPortal(r, uuid, div) {
     const pd = initializePortalData(r, uuid);
     pd.template = div.cloneNode(true);
+    replacePortalsWithExits(pd.template);
     syncToPortals(r, uuid);
+}
+class PortalExit extends HTMLElement {
+    constructor() {
+        super();
+        this.uuid = undefined;
+    }
 }
 class PortalElement extends HTMLElement {
     constructor() {
@@ -83,6 +120,7 @@ class PortalElement extends HTMLElement {
             subtree: true,
         };
         this.observer.observe(this, options);
+        this.depth = 0;
     }
     connectedCallback() {
         console.log('connectedCallback');
@@ -106,6 +144,9 @@ class PortalElement extends HTMLElement {
             super.appendChild(clonedNode);
             const pd = initializePortalData(globalPortalRegistry, clonedNode.uuid);
             pd.portals.push(clonedNode);
+            if (this.div !== undefined) {
+                syncFromPortal(globalPortalRegistry, this.uuid, this.div);
+            }
             syncToPortals(globalPortalRegistry, clonedNode.uuid);
             return clonedNode;
         }
@@ -145,6 +186,7 @@ function observe(p, mutations, observer) {
         }
     });
 }
+customElements.define('portal-exit', PortalExit);
 
 portal_element = __webpack_exports__;
 /******/ })()

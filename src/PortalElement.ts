@@ -32,10 +32,48 @@ function syncToPortals(r: PortalRegistry, uuid: UUID): void {
     });
 }
 
+function replacePortalsWithExits(n: Node) {
+    n.childNodes.forEach(c => {
+        if (c instanceof PortalElement) {
+            const newChild = document.createElement('portal-exit') as PortalExit;
+            newChild.uuid = c.uuid;
+            n.replaceChild(newChild, c);
+        } else {
+            replacePortalsWithExits(c);
+        }
+    });
+}
+
+function replaceExitsWithPortals(r: PortalRegistry, n: Node) {
+    const RECURSION_LIMIT = 8;
+    function go(n: Node) {
+        n.childNodes.forEach(c => {
+            if (c instanceof PortalExit) {
+                const newChild = document.createElement('portal-element') as PortalElement;
+                if (c.uuid === undefined) {
+                    throw new Error('undefined uuid in portal exit');
+                }
+                newChild.uuid = c.uuid;
+            }
+        });
+    }
+    go(0, n);
+}
+
 function syncFromPortal(r: PortalRegistry, uuid: UUID, div: HTMLDivElement): void {
     const pd = initializePortalData(r, uuid);
     pd.template = div.cloneNode(true) as HTMLDivElement;
+    replacePortalsWithExits(pd.template);
     syncToPortals(r, uuid);
+}
+
+class PortalExit extends HTMLElement {
+    uuid: UUID | undefined;
+
+    constructor() {
+        super();
+        this.uuid = undefined;
+    }
 }
 
 export default class PortalElement extends HTMLElement {
@@ -43,6 +81,7 @@ export default class PortalElement extends HTMLElement {
     div: HTMLDivElement | undefined;
     uuid: UUID;
     observer: MutationObserver;
+    depth: number;
 
     constructor() {
         super();
@@ -57,6 +96,7 @@ export default class PortalElement extends HTMLElement {
             subtree: true,
         };
         this.observer.observe(this, options);
+        this.depth = 0;
     }
 
     connectedCallback() {
@@ -75,7 +115,7 @@ export default class PortalElement extends HTMLElement {
     adoptedCallback() {
         console.log('adoptedCallback');
     }
-    
+
     appendChild<T extends Node>(node: T): T {
         if (node instanceof PortalElement) {
             const clonedNode = node.cloneNode(true) as PortalElement;
@@ -84,6 +124,9 @@ export default class PortalElement extends HTMLElement {
             super.appendChild(clonedNode);
             const pd = initializePortalData(globalPortalRegistry, clonedNode.uuid);
             pd.portals.push(clonedNode);
+            if (this.div !== undefined) {
+                syncFromPortal(globalPortalRegistry, this.uuid, this.div);
+            }
             syncToPortals(globalPortalRegistry, clonedNode.uuid);
             return clonedNode as unknown as T;
         } else {
@@ -125,3 +168,5 @@ function observe(p: PortalElement, mutations: Array<MutationRecord>, observer: M
         }
     });
 }
+
+customElements.define('portal-exit', PortalExit);
