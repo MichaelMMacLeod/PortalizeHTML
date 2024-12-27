@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Demo</title>
+  <style>
+    html {
+      color-scheme: light dark;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --SF-color-background: #111111;
+        --SF-color-foreground: #ffffff;
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --SF-color-background: #ffffff;
+        --SF-color-foreground: #000000;
+      }
+    }
+
+    /* snowflake-graph-element {
+      margin-left: 10em;
+    } */
+  </style>
+</head>
+
+<body>
+  <script src="dist/snowflake.js"></script>
+  <script src="dist/snowflake_graph.js"></script>
+  <script>
+    customElements.define('snowflake-element', snowflake.default);
+    customElements.define('snowflake-graph-element', snowflake_graph.default);
+    window.snowflake = document.createElement('snowflake-element');
+    window.graph = document.createElement('snowflake-graph-element');
+    document.body.appendChild(graph);
+    document.body.appendChild(snowflake);
+    window.graphConfig = {
+      snowflakeID: '17827239998',
+      aspectRatio: 6,
+      percentGrown: 0.5,
+      handleMovedCallback: snowflakeID => {
+        config.snowflakeID = snowflakeID;
+        snowflake.configure(config);
+      },
+    };
+    window.config = {
+      snowflakeID: '17827239998',
+      upsCap: 100000,
+      targetGrowthTimeMS: 1000,
+      finishedGrowingCallback: () => console.log('done growing'),
+      updatedCallback: () => {
+        graphConfig.snowflakeID = config.snowflakeID;
+        graphConfig.percentGrown = snowflake.percentGrown();
+        graph.configure(graphConfig);
+      },
+    };
+    graph.configure(graphConfig);
+    snowflake.configure(config);
+  </script>
+</body>
+
+</html>
