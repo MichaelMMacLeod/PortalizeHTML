@@ -37,156 +37,270 @@ var portal_element;
 var __webpack_exports__ = {};
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (/* binding */ PortalElement)
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
-const globalPortalRegistry = new Map();
-window.gpr = globalPortalRegistry;
+var __classPrivateFieldSet = (undefined && undefined.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
+};
+var __classPrivateFieldGet = (undefined && undefined.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var _PortalElementContainer_shadow, _PortalElementContainer_registry, _PortalElementContainer_observer, _PortalElement_shadow, _PortalElement_uuid, _PortalElement_observer, _PortalElement_state;
+const RECURSION_DEPTH = 10;
+function findAncestor(n, isCorrectNode) {
+    let current = n;
+    while (true) {
+        while (current instanceof ShadowRoot) {
+            current = current.host;
+        }
+        if (isCorrectNode(current)) {
+            return current;
+        }
+        if (current.parentNode === null) {
+            return undefined;
+        }
+        current = current.parentNode;
+    }
+}
 function makePortalData() {
     return {
         template: document.createElement('div'),
-        portals: [],
+        portals: new Set(),
     };
 }
-function initializePortalData(r, uuid) {
-    let d = r.get(uuid);
-    if (d === undefined) {
-        d = makePortalData();
-        r.set(uuid, d);
+function observePortalElementContainerChanges(pec, m, _mo) {
+    m.forEach(mr => {
+        pec.observePortalElementContainerChange(mr);
+    });
+}
+class PortalElementContainer extends HTMLElement {
+    constructor() {
+        super();
+        _PortalElementContainer_shadow.set(this, void 0);
+        _PortalElementContainer_registry.set(this, void 0);
+        _PortalElementContainer_observer.set(this, void 0);
+        __classPrivateFieldSet(this, _PortalElementContainer_shadow, this.attachShadow({ mode: 'open' }), "f");
+        __classPrivateFieldSet(this, _PortalElementContainer_registry, new Map(), "f");
+        __classPrivateFieldSet(this, _PortalElementContainer_observer, new MutationObserver((m, o) => observePortalElementContainerChanges(this, m, o)), "f");
     }
-    return d;
-}
-function syncToPortals(r, uuid) {
-    const pd = initializePortalData(r, uuid);
-    pd.portals.forEach(p => {
-        var _a;
-        const clonedTemplate = pd.template.cloneNode(true);
-        (_a = p.div) === null || _a === void 0 ? void 0 : _a.replaceWith(clonedTemplate);
-        p.div = clonedTemplate;
-    });
-}
-function replacePortalsWithExits(n) {
-    n.childNodes.forEach(c => {
-        if (c instanceof PortalElement) {
-            const newChild = document.createElement('portal-exit');
-            newChild.uuid = c.uuid;
-            n.replaceChild(newChild, c);
+    appendChild(node) {
+        return __classPrivateFieldGet(this, _PortalElementContainer_shadow, "f").appendChild(node);
+    }
+    initializePortalData(uuid) {
+        let d = __classPrivateFieldGet(this, _PortalElementContainer_registry, "f").get(uuid);
+        if (d === undefined) {
+            d = makePortalData();
+            __classPrivateFieldGet(this, _PortalElementContainer_registry, "f").set(uuid, d);
         }
-        else {
-            replacePortalsWithExits(c);
-        }
-    });
-}
-function replaceExitsWithPortals(r, n) {
-    const RECURSION_LIMIT = 8;
-    function go(depth, n) {
-        if (depth >= RECURSION_LIMIT) {
+        return d;
+    }
+    expandPortals(node, depth = 0) {
+        if (depth >= RECURSION_DEPTH) {
             return;
         }
-        n.childNodes.forEach(c => {
-            if (c instanceof PortalExit) {
-                const newChild = document.createElement('portal-element');
-                if (c.uuid === undefined) {
-                    throw new Error('undefined uuid in portal exit');
+        const children = (() => {
+            if (node instanceof PortalElement) {
+                if (node.div === undefined) {
+                    return new NodeList();
                 }
-                newChild.uuid = c.uuid;
+                const pd = this.initializePortalData(node.uuid);
+                node.stopObserving();
+                node.div = pd.template.cloneNode(true);
+                node.startObserving();
+                return node.div.childNodes;
             }
+            return node.childNodes;
+        })();
+        const newDepth = node instanceof PortalElement ? depth + 1 : depth;
+        children.forEach(c => {
+            this.expandPortals(c, newDepth);
         });
     }
-    go(0, n);
-}
-function syncFromPortal(r, uuid, div) {
-    const pd = initializePortalData(r, uuid);
-    pd.template = div.cloneNode(true);
-    replacePortalsWithExits(pd.template);
-    syncToPortals(r, uuid);
-}
-class PortalExit extends HTMLElement {
-    constructor() {
-        super();
-        this.uuid = undefined;
+    installTemplate(uuid) {
+        const pd = this.initializePortalData(uuid);
+        pd.portals.forEach(p => {
+            this.expandPortals(p);
+        });
     }
-}
-class PortalElement extends HTMLElement {
-    constructor() {
-        super();
-        this.shadow = this.attachShadow({ mode: 'open' });
-        this.div = undefined;
-        this.observer = new MutationObserver((m, o) => observe(this, m, o));
-        this.uuid = crypto.randomUUID();
+    observePortalElementContainerChange(m) {
+        this.stopObserving();
+        const portal = findAncestor(m.target, n => n instanceof PortalElement || n instanceof PortalElementContainer);
+        if (portal instanceof PortalElementContainer) {
+            m.addedNodes.forEach(n => {
+                if (n instanceof PortalElement) {
+                    const portal = n;
+                    const pd = this.initializePortalData(portal.uuid);
+                    const template = portal.makeTemplate();
+                    if (template === undefined) {
+                        throw new Error('undefined template');
+                    }
+                    pd.template = template;
+                    this.installTemplate(portal.uuid);
+                }
+            });
+        }
+        else if (portal instanceof PortalElement) {
+            const pd = this.initializePortalData(portal.uuid);
+            const template = portal.makeTemplate();
+            if (template === undefined) {
+                throw new Error('undefined template');
+            }
+            pd.template = template;
+            this.installTemplate(portal.uuid);
+        }
+        this.startObserving();
+    }
+    startObserving() {
         const options = {
             attributes: true,
             characterData: true,
             childList: true,
             subtree: true,
         };
-        this.observer.observe(this, options);
-        this.depth = 0;
+        __classPrivateFieldGet(this, _PortalElementContainer_observer, "f").observe(__classPrivateFieldGet(this, _PortalElementContainer_shadow, "f"), options);
+    }
+    stopObserving() {
+        __classPrivateFieldGet(this, _PortalElementContainer_observer, "f").disconnect();
     }
     connectedCallback() {
-        console.log('connectedCallback');
-        this.div = document.createElement('div');
-        this.shadow.appendChild(this.div);
-        const pd = initializePortalData(globalPortalRegistry, this.uuid);
-        pd.portals.push(this);
-        syncToPortals(globalPortalRegistry, this.uuid);
+        const parent = this.parentNode;
+        if (parent !== null &&
+            findAncestor(parent, o => o instanceof PortalElementContainer || o instanceof PortalElement) !== undefined) {
+            throw new Error('portal-element-container was inserted into a portal-element or portal-element-container');
+        }
+        this.startObserving();
     }
     disconnectedCallback() {
-        console.log('disconnectedCallback');
+        this.stopObserving();
     }
-    adoptedCallback() {
-        console.log('adoptedCallback');
+    registerNewlyConnectedPortal(p) {
+        this.initializePortalData(p.uuid).portals.add(p);
+    }
+    registerNewlyDisconnectedPortal(p) {
+        const pd = this.initializePortalData(p.uuid);
+        pd.portals.delete(p);
+        if (pd.portals.size === 0) {
+            __classPrivateFieldGet(this, _PortalElementContainer_registry, "f").delete(p.uuid);
+        }
+    }
+    get registry() {
+        return __classPrivateFieldGet(this, _PortalElementContainer_registry, "f");
+    }
+}
+_PortalElementContainer_shadow = new WeakMap(), _PortalElementContainer_registry = new WeakMap(), _PortalElementContainer_observer = new WeakMap();
+class PortalElement extends HTMLElement {
+    constructor() {
+        super();
+        _PortalElement_shadow.set(this, void 0);
+        _PortalElement_uuid.set(this, void 0);
+        _PortalElement_observer.set(this, void 0);
+        _PortalElement_state.set(this, void 0);
+        __classPrivateFieldSet(this, _PortalElement_shadow, this.attachShadow({ mode: 'open' }), "f");
+        __classPrivateFieldSet(this, _PortalElement_uuid, crypto.randomUUID(), "f");
+        __classPrivateFieldSet(this, _PortalElement_state, undefined, "f");
+        __classPrivateFieldSet(this, _PortalElement_observer, new MutationObserver((m, o) => {
+            const container = findAncestor(this, a => a instanceof PortalElementContainer);
+            if (container !== undefined) {
+                this.stopObserving();
+                observePortalElementContainerChanges(container, m, o);
+                this.startObserving();
+            }
+        }), "f");
+    }
+    startObserving() {
+        const options = {
+            attributes: true,
+            characterData: true,
+            childList: true,
+            subtree: true,
+        };
+        __classPrivateFieldGet(this, _PortalElement_observer, "f").observe(__classPrivateFieldGet(this, _PortalElement_shadow, "f"), options);
+    }
+    stopObserving() {
+        __classPrivateFieldGet(this, _PortalElement_observer, "f").disconnect();
     }
     appendChild(node) {
-        if (node instanceof PortalElement) {
-            const clonedNode = node.cloneNode(true);
-            clonedNode.uuid = node.uuid;
-            console.log('recursive instantiation', node, clonedNode);
-            super.appendChild(clonedNode);
-            const pd = initializePortalData(globalPortalRegistry, clonedNode.uuid);
-            pd.portals.push(clonedNode);
-            if (this.div !== undefined) {
-                syncFromPortal(globalPortalRegistry, this.uuid, this.div);
-            }
-            syncToPortals(globalPortalRegistry, clonedNode.uuid);
-            return clonedNode;
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") !== undefined) {
+            return __classPrivateFieldGet(this, _PortalElement_state, "f").div.appendChild(node);
+        }
+        return node;
+    }
+    connectedCallback() {
+        __classPrivateFieldSet(this, _PortalElement_state, {
+            container: (() => {
+                const container = findAncestor(this, a => a instanceof PortalElementContainer);
+                if (container === undefined) {
+                    throw new Error('portal-element outside of portal-element-container');
+                }
+                return container;
+            })(),
+            div: document.createElement('div'),
+        }, "f");
+        __classPrivateFieldGet(this, _PortalElement_shadow, "f").appendChild(__classPrivateFieldGet(this, _PortalElement_state, "f").div);
+        __classPrivateFieldGet(this, _PortalElement_state, "f").container.registerNewlyConnectedPortal(this);
+        this.startObserving();
+    }
+    disconnectedCallback() {
+        this.stopObserving();
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") !== undefined) {
+            __classPrivateFieldGet(this, _PortalElement_state, "f").div.remove();
+            __classPrivateFieldGet(this, _PortalElement_state, "f").container.registerNewlyDisconnectedPortal(this);
+            __classPrivateFieldSet(this, _PortalElement_state, undefined, "f");
+        }
+    }
+    // override cloneNode(deep?: boolean): Node {
+    //     const result = super.cloneNode(deep) as PortalElement;
+    //     result.#uuid = this.#uuid;
+    //     // if (deep !== undefined && deep) {
+    //     //     result.#uuid = this.#uuid;
+    //     // }
+    //     // this.div?.childNodes.forEach(c => {
+    //     //     result.appendChild(c.cloneNode(true));
+    //     // });
+    //     return result;
+    // }
+    makeTemplate() {
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") === undefined) {
+            return undefined;
+        }
+        return __classPrivateFieldGet(this, _PortalElement_state, "f").div.cloneNode(true);
+    }
+    get uuid() {
+        return __classPrivateFieldGet(this, _PortalElement_uuid, "f");
+    }
+    set uuid(uuid) {
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") !== undefined) {
+            this.disconnectedCallback();
+            __classPrivateFieldSet(this, _PortalElement_uuid, uuid, "f");
+            this.connectedCallback();
         }
         else {
-            return super.appendChild(node);
+            __classPrivateFieldSet(this, _PortalElement_uuid, uuid, "f");
         }
     }
-}
-function handleAttributeChange(p, m) {
-    console.log(m);
-}
-function handleCharacterDataChange(p, m) {
-    console.log(m);
-}
-function handleChildListChange(p, m) {
-    console.log(m);
-    if (p.div !== undefined) {
-        m.addedNodes.forEach(n => {
-            var _a;
-            (_a = p.div) === null || _a === void 0 ? void 0 : _a.appendChild(n);
-        });
-        syncFromPortal(globalPortalRegistry, p.uuid, p.div);
+    get div() {
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") === undefined) {
+            return undefined;
+        }
+        return __classPrivateFieldGet(this, _PortalElement_state, "f").div;
+    }
+    set div(div) {
+        if (__classPrivateFieldGet(this, _PortalElement_state, "f") === undefined) {
+            return;
+        }
+        __classPrivateFieldGet(this, _PortalElement_state, "f").div.replaceWith(div);
+        __classPrivateFieldGet(this, _PortalElement_state, "f").div = div;
     }
 }
-function observe(p, mutations, observer) {
-    mutations.forEach(m => {
-        switch (m.type) {
-            case 'attributes':
-                handleAttributeChange(p, m);
-                break;
-            case 'characterData':
-                handleCharacterDataChange(p, m);
-                break;
-            case 'childList':
-                handleChildListChange(p, m);
-                break;
-        }
-    });
-}
-customElements.define('portal-exit', PortalExit);
+_PortalElement_shadow = new WeakMap(), _PortalElement_uuid = new WeakMap(), _PortalElement_observer = new WeakMap(), _PortalElement_state = new WeakMap();
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (PortalElement);
+customElements.define('portal-element-container', PortalElementContainer);
+customElements.define('portal-element', PortalElement);
 
 portal_element = __webpack_exports__;
 /******/ })()

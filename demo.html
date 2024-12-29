@@ -13,12 +13,6 @@
 <body>
   <script src="dist/portal_element.js"></script>
   <script>
-    customElements.define('portal-element', portal_element.default);
-    window.p1 = document.createElement('portal-element');
-    window.p2 = document.createElement('portal-element');
-    p2.uuid = p1.uuid;
-    document.body.appendChild(p1);
-    document.body.appendChild(p2);
     const d = document.createElement('div');
     d.style.display = 'flex';
     d.style.flexDirection = 'row';
@@ -28,10 +22,31 @@
     b.style.background = 'black';
     b.style.margin = '1em';
     d.appendChild(b);
+    // const t = document.createElement('input');
+    // t.textContent = 'Hello, world!';
+    // d.appendChild(t);
+
+    window.pec = document.createElement('portal-element-container');
+    document.body.appendChild(pec);
+    window.p1 = document.createElement('portal-element');
+    pec.appendChild(p1);
     p1.appendChild(d);
-    p1.appendChild(p1);
-    // p.appendChild(p);
+    window.p2 = document.createElement('portal-element');
+    p2.uuid = p1.uuid;
+    pec.appendChild(p2);
+    window.p3 = document.createElement('portal-element');
+    p3.uuid = p1.uuid;
+    p1.div.childNodes[0].appendChild(p3);
+    function changeColors() {
+      if (p1.div !== undefined) {
+        p1.div.childNodes[0].childNodes[0].style.background = '#' + Math.floor(Math.random()*16777215).toString(16);;
+      }
+    }
+
+    // // p1.appendChild(p1);
+    // // p.appendChild(p);
   </script>
+  <button onclick="changeColors()">Change Colors</button>
 </body>
 
 </html>

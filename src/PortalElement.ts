@@ -1,172 +1,288 @@
 type UUID = `${string}-${string}-${string}-${string}-${string}`;
 type PortalData = {
     template: HTMLDivElement,
-    portals: Array<PortalElement>,
+    portals: Set<PortalElement>,
 };
 type PortalRegistry = Map<UUID, PortalData>;
-const globalPortalRegistry: PortalRegistry = new Map();
-(window as any).gpr = globalPortalRegistry;
+const RECURSION_DEPTH = 10;
+
+function findAncestor<T extends Node>(n: Node, isCorrectNode: (o: Node) => o is T): T | undefined {
+    let current = n;
+    while (true) {
+        while (current instanceof ShadowRoot) {
+            current = current.host;
+        }
+        if (isCorrectNode(current)) {
+            return current;
+        }
+        if (current.parentNode === null) {
+            return undefined;
+        }
+        current = current.parentNode;
+    }
+}
 
 function makePortalData(): PortalData {
     return {
         template: document.createElement('div'),
-        portals: [],
+        portals: new Set(),
     };
 }
+function observePortalElementContainerChanges(pec: PortalElementContainer, m: Array<MutationRecord>, _mo: MutationObserver): void {
+    m.forEach(mr => {
+        pec.observePortalElementContainerChange(mr);
+    });
+}
 
-function initializePortalData(r: PortalRegistry, uuid: UUID): PortalData {
-    let d = r.get(uuid);
-    if (d === undefined) {
-        d = makePortalData();
-        r.set(uuid, d);
+class PortalElementContainer extends HTMLElement {
+    #shadow: ShadowRoot;
+    #registry: PortalRegistry;
+    #observer: MutationObserver;
+
+    constructor() {
+        super();
+        this.#shadow = this.attachShadow({ mode: 'open' });
+        this.#registry = new Map();
+        this.#observer = new MutationObserver((m, o) => observePortalElementContainerChanges(this, m, o));
     }
-    return d;
-}
 
-function syncToPortals(r: PortalRegistry, uuid: UUID): void {
-    const pd = initializePortalData(r, uuid);
-    pd.portals.forEach(p => {
-        const clonedTemplate = pd.template.cloneNode(true) as HTMLDivElement;
-        p.div?.replaceWith(clonedTemplate);
-        p.div = clonedTemplate;
-    });
-}
+    override appendChild<T extends Node>(node: T): T {
+        return this.#shadow.appendChild(node);
+    }
 
-function replacePortalsWithExits(n: Node) {
-    n.childNodes.forEach(c => {
-        if (c instanceof PortalElement) {
-            const newChild = document.createElement('portal-exit') as PortalExit;
-            newChild.uuid = c.uuid;
-            n.replaceChild(newChild, c);
-        } else {
-            replacePortalsWithExits(c);
+    initializePortalData(uuid: UUID): PortalData {
+        let d = this.#registry.get(uuid);
+        if (d === undefined) {
+            d = makePortalData();
+            this.#registry.set(uuid, d);
         }
-    });
-}
+        return d;
+    }
 
-function replaceExitsWithPortals(r: PortalRegistry, n: Node) {
-    const RECURSION_LIMIT = 8;
-    function go(n: Node) {
-        n.childNodes.forEach(c => {
-            if (c instanceof PortalExit) {
-                const newChild = document.createElement('portal-element') as PortalElement;
-                if (c.uuid === undefined) {
-                    throw new Error('undefined uuid in portal exit');
+    expandPortals(node: Node, depth: number = 0): void {
+        if (depth >= RECURSION_DEPTH) {
+            return;
+        }
+        const children: NodeListOf<ChildNode> = (() => {
+            if (node instanceof PortalElement) {
+                if (node.div === undefined) {
+                    return new NodeList() as NodeListOf<ChildNode>;
                 }
-                newChild.uuid = c.uuid;
+                const pd = this.initializePortalData(node.uuid);
+                node.stopObserving();
+                node.div = pd.template.cloneNode(true) as HTMLDivElement;
+                node.startObserving();
+                return node.div.childNodes;
             }
+            return node.childNodes;
+        })();
+        const newDepth = node instanceof PortalElement ? depth + 1 : depth;
+        children.forEach(c => {
+            this.expandPortals(c, newDepth);
+        })
+    }
+
+    installTemplate(uuid: UUID): void {
+        const pd = this.initializePortalData(uuid);
+        pd.portals.forEach(p => {
+            this.expandPortals(p);
         });
     }
-    go(0, n);
-}
 
-function syncFromPortal(r: PortalRegistry, uuid: UUID, div: HTMLDivElement): void {
-    const pd = initializePortalData(r, uuid);
-    pd.template = div.cloneNode(true) as HTMLDivElement;
-    replacePortalsWithExits(pd.template);
-    syncToPortals(r, uuid);
-}
+    observePortalElementContainerChange(m: MutationRecord): void {
+        this.stopObserving();
 
-class PortalExit extends HTMLElement {
-    uuid: UUID | undefined;
+        const portal = findAncestor(m.target, n => n instanceof PortalElement || n instanceof PortalElementContainer);
+        if (portal instanceof PortalElementContainer) {
+            m.addedNodes.forEach(n => {
+                if (n instanceof PortalElement) {
+                    const portal = n;
+                    const pd = this.initializePortalData(portal.uuid);
+                    const template = portal.makeTemplate();
+                    if (template === undefined) {
+                        throw new Error('undefined template');
+                    }
+                    pd.template = template;
+                    this.installTemplate(portal.uuid);
+                }
+            });
+        } else if (portal instanceof PortalElement) {
+            const pd = this.initializePortalData(portal.uuid);
+            const template = portal.makeTemplate();
+            if (template === undefined) {
+                throw new Error('undefined template');
+            }
+            pd.template = template;
+            this.installTemplate(portal.uuid);
+        }
 
-    constructor() {
-        super();
-        this.uuid = undefined;
+        this.startObserving();
     }
-}
 
-export default class PortalElement extends HTMLElement {
-    shadow: ShadowRoot;
-    div: HTMLDivElement | undefined;
-    uuid: UUID;
-    observer: MutationObserver;
-    depth: number;
-
-    constructor() {
-        super();
-        this.shadow = this.attachShadow({ mode: 'open' });
-        this.div = undefined;
-        this.observer = new MutationObserver((m, o) => observe(this, m, o));
-        this.uuid = crypto.randomUUID();
+    startObserving() {
         const options: MutationObserverInit = {
             attributes: true,
             characterData: true,
             childList: true,
             subtree: true,
         };
-        this.observer.observe(this, options);
-        this.depth = 0;
+        this.#observer.observe(this.#shadow, options);
+    }
+
+    stopObserving() {
+        this.#observer.disconnect();
+    }
+
+    connectedCallback(): void {
+        const parent = this.parentNode;
+        if (parent !== null &&
+            findAncestor(parent, o => o instanceof PortalElementContainer || o instanceof PortalElement) !== undefined) {
+            throw new Error('portal-element-container was inserted into a portal-element or portal-element-container');
+        }
+        this.startObserving();
+    }
+
+    disconnectedCallback(): void {
+        this.stopObserving();
+    }
+
+    registerNewlyConnectedPortal(p: PortalElement): void {
+        this.initializePortalData(p.uuid).portals.add(p);
+    }
+
+    registerNewlyDisconnectedPortal(p: PortalElement): void {
+        const pd = this.initializePortalData(p.uuid);
+        pd.portals.delete(p);
+        if (pd.portals.size === 0) {
+            this.#registry.delete(p.uuid);
+        }
+    }
+
+    get registry(): PortalRegistry {
+        return this.#registry;
+    }
+}
+
+type PortalElementState = {
+    container: PortalElementContainer,
+    div: HTMLDivElement,
+};
+
+export default class PortalElement extends HTMLElement {
+    #shadow: ShadowRoot;
+    #uuid: UUID;
+    #observer: MutationObserver;
+    #state: PortalElementState | undefined;
+
+    constructor() {
+        super();
+        this.#shadow = this.attachShadow({ mode: 'open' });
+        this.#uuid = crypto.randomUUID();
+        this.#state = undefined;
+        this.#observer = new MutationObserver((m, o) => {
+            const container = findAncestor(this, a => a instanceof PortalElementContainer);
+            if (container !== undefined) {
+                this.stopObserving();
+                observePortalElementContainerChanges(container, m, o)
+                this.startObserving();
+            }
+        });
+    }
+
+    startObserving() {
+        const options: MutationObserverInit = {
+            attributes: true,
+            characterData: true,
+            childList: true,
+            subtree: true,
+        };
+        this.#observer.observe(this.#shadow, options);
+    }
+
+    stopObserving() {
+        this.#observer.disconnect();
+    }
+
+    override appendChild<T extends Node>(node: T): T {
+        if (this.#state !== undefined) {
+            return this.#state.div.appendChild(node);
+        }
+        return node;
     }
 
     connectedCallback() {
-        console.log('connectedCallback');
-        this.div = document.createElement('div');
-        this.shadow.appendChild(this.div);
-        const pd = initializePortalData(globalPortalRegistry, this.uuid);
-        pd.portals.push(this);
-        syncToPortals(globalPortalRegistry, this.uuid);
+        this.#state = {
+            container: (() => {
+                const container = findAncestor(this, a => a instanceof PortalElementContainer);
+                if (container === undefined) {
+                    throw new Error('portal-element outside of portal-element-container');
+                }
+                return container;
+            })(),
+            div: document.createElement('div'),
+        };
+        this.#shadow.appendChild(this.#state.div);
+        this.#state.container.registerNewlyConnectedPortal(this);
+        this.startObserving();
     }
 
     disconnectedCallback() {
-        console.log('disconnectedCallback');
+        this.stopObserving();
+        if (this.#state !== undefined) {
+            this.#state.div.remove();
+            this.#state.container.registerNewlyDisconnectedPortal(this);
+            this.#state = undefined;
+        }
     }
 
-    adoptedCallback() {
-        console.log('adoptedCallback');
+    // override cloneNode(deep?: boolean): Node {
+    //     const result = super.cloneNode(deep) as PortalElement;
+    //     result.#uuid = this.#uuid;
+    //     // if (deep !== undefined && deep) {
+    //     //     result.#uuid = this.#uuid;
+    //     // }
+    //     // this.div?.childNodes.forEach(c => {
+    //     //     result.appendChild(c.cloneNode(true));
+    //     // });
+    //     return result;
+    // }
+
+    makeTemplate(): HTMLDivElement | undefined {
+        if (this.#state === undefined) {
+            return undefined;
+        }
+        return this.#state.div.cloneNode(true) as HTMLDivElement;
     }
 
-    appendChild<T extends Node>(node: T): T {
-        if (node instanceof PortalElement) {
-            const clonedNode = node.cloneNode(true) as PortalElement;
-            clonedNode.uuid = node.uuid;
-            console.log('recursive instantiation', node, clonedNode);
-            super.appendChild(clonedNode);
-            const pd = initializePortalData(globalPortalRegistry, clonedNode.uuid);
-            pd.portals.push(clonedNode);
-            if (this.div !== undefined) {
-                syncFromPortal(globalPortalRegistry, this.uuid, this.div);
-            }
-            syncToPortals(globalPortalRegistry, clonedNode.uuid);
-            return clonedNode as unknown as T;
+    get uuid(): UUID {
+        return this.#uuid;
+    }
+
+    set uuid(uuid: UUID) {
+        if (this.#state !== undefined) {
+            this.disconnectedCallback();
+            this.#uuid = uuid;
+            this.connectedCallback();
         } else {
-            return super.appendChild(node);
+            this.#uuid = uuid;
         }
+    }
+
+    get div(): HTMLDivElement | undefined {
+        if (this.#state === undefined) {
+            return undefined;
+        }
+        return this.#state.div;
+    }
+
+    set div(div: HTMLDivElement) {
+        if (this.#state === undefined) {
+            return;
+        }
+        this.#state.div.replaceWith(div);
+        this.#state.div = div;
     }
 }
 
-function handleAttributeChange(p: PortalElement, m: MutationRecord) {
-    console.log(m);
-}
-
-function handleCharacterDataChange(p: PortalElement, m: MutationRecord) {
-    console.log(m);
-}
-
-function handleChildListChange(p: PortalElement, m: MutationRecord) {
-    console.log(m);
-    if (p.div !== undefined) {
-        m.addedNodes.forEach(n => {
-            p.div?.appendChild(n);
-        })
-        syncFromPortal(globalPortalRegistry, p.uuid, p.div);
-    }
-}
-
-function observe(p: PortalElement, mutations: Array<MutationRecord>, observer: MutationObserver): void {
-    mutations.forEach(m => {
-        switch (m.type) {
-            case 'attributes':
-                handleAttributeChange(p, m);
-                break;
-            case 'characterData':
-                handleCharacterDataChange(p, m);
-                break;
-            case 'childList':
-                handleChildListChange(p, m);
-                break;
-        }
-    });
-}
-
-customElements.define('portal-exit', PortalExit);
+customElements.define('portal-element-container', PortalElementContainer);
+customElements.define('portal-element', PortalElement);
