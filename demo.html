@@ -16,31 +16,37 @@
     const d = document.createElement('div');
     d.style.display = 'flex';
     d.style.flexDirection = 'row';
+    d.style.fontSize = '0.8em';
+    d.style.marginTop = 'auto';
+    d.style.marginBottom = 'auto';
+    d.style.justifyContent = 'center';
     const b = document.createElement('div');
     b.style.width = '10em';
     b.style.height = '10em';
-    b.style.background = 'black';
+    b.style.background = 'lightgreen';
     b.style.margin = '1em';
     d.appendChild(b);
+    d.setAttribute('portal-id', '1');
     // const t = document.createElement('input');
     // t.textContent = 'Hello, world!';
     // d.appendChild(t);
 
-    window.pec = document.createElement('portal-element-container');
-    document.body.appendChild(pec);
-    window.p1 = document.createElement('portal-element');
-    pec.appendChild(p1);
-    p1.appendChild(d);
-    window.p2 = document.createElement('portal-element');
-    p2.uuid = p1.uuid;
-    pec.appendChild(p2);
-    window.p3 = document.createElement('portal-element');
-    p3.uuid = p1.uuid;
-    p1.div.childNodes[0].appendChild(p3);
+    window.pe = document.createElement('portal-element');
+    document.body.appendChild(pe);
+
+    pe.appendChild(d);
+
+    const d2 = document.createElement('div');
+    d2.setAttribute('portal-id', '1');
+    d.appendChild(d2);
+    // pe.appendChild(d2);
+    
+    function randomColor() {
+      return '#' + Math.floor(Math.random()*16777215).toString(16);
+    }
     function changeColors() {
-      if (p1.div !== undefined) {
-        p1.div.childNodes[0].childNodes[0].style.background = '#' + Math.floor(Math.random()*16777215).toString(16);;
-      }
+      pe.childNodes[0].
+      b.style.background = randomColor();
     }
 
     // // p1.appendChild(p1);
