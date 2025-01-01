@@ -3,7 +3,7 @@
         "strict": true,
         "alwaysStrict": true,
         "noImplicitAny": true,
-        "lib": ["es2016", "dom"],
+        "lib": ["ES2020", "ES2021.WeakRef", "dom"],
         "module": "es6",
         "target": "es6",
         "moduleResolution": "node",
