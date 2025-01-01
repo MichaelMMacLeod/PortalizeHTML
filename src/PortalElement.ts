@@ -122,6 +122,10 @@ class PortalElement extends HTMLElement {
         return this.#shadow.appendChild(node);
     }
 
+    override get childNodes(): NodeListOf<ChildNode> {
+        return this.#shadow.childNodes
+    }
+
     expandTemplatesInNode(
         node: Node,
         deletions: Array<AddDelElement>,
