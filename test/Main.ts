@@ -46,3 +46,16 @@ test('div#0/div/div#1/p div#0/div/div#1/p', () => {
     template.innerHTML = `${divHTML}${divHTML}`;
     expect(document.body).toStrictEqual(template);
 });
+
+test('recursive div', () => {
+    const pm = new PortalManager();
+    let d = pm.createElementPortal('div');
+    d.style.width = '50%';
+    d.style.height = '100%';
+    d.style.background = 'rgba(0,0,0,0.1)';
+    d.style.display = 'flex';
+    pm.observeNodeChanged(d);
+    d = pm.appendChild(d, d) as HTMLDivElement;
+    d = pm.appendChild(document.body, d) as HTMLDivElement;
+    // expect(document.body.childNodes[0] as HTMLDiv)
+});

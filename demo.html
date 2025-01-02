@@ -15,23 +15,28 @@
   <script>
     const PortalManager = portal_manager.default;
 
+    document.documentElement.style.width = '100%';
+    document.documentElement.style.height = '100%';
+    document.body.style.height = '100%';
+    document.body.style.width = '100%';
     const pm = new PortalManager();
-    const d1 = pm.createElementPortal('div');
-    const d2 = pm.createElementPortal('div');
-    pm.appendChild(d1, d2);
-    const pd1 = pm.unsafeElementMap.get(d1);
-    const pd2 = pm.unsafeElementMap.get(d2);
-    if (pd1 === undefined) {
-        throw new Error('pd1 undefined');
-    }
-    if (pd2 === undefined) {
-        throw new Error('pd2 undefined');
-    }
-    const d1Template = document.createElement('div');
-    const ph = document.createElement('portal-placeholder');
-    ph.setPortalID(pd2.portalID);
-    d1Template.appendChild(ph);
-    debugger;
+    let d = pm.createElementPortal('div');
+    d.style.width = '60%';
+    d.style.height = '100%';
+    d.style.background = 'rgba(0,0,0,0.1)';
+    d.style.display = 'flex';
+    d.style.flexDirection = 'row';
+    pm.observeNodeChanged(d);
+    d = pm.appendChild(d, d);
+    d = pm.appendChild(document.body, d);
+    setInterval(() => {
+      if (d.style.flexDirection === 'row') {
+        d.style.flexDirection = 'column';
+      } else {
+        d.style.flexDirection = 'row';
+      }
+      pm.observeNodeChanged(d);
+    }, 1000);
     // const pm = new PortalManager();
     // const d = document.createElement('div');
     // d.style.width = '100%';
@@ -61,7 +66,6 @@
     // // // p1.appendChild(p1);
     // // // p.appendChild(p);
   </script>
-  <button onclick="changeColors()">Change Colors</button>
 </body>
 
 </html>

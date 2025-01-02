@@ -72,6 +72,16 @@ type ExpandPlaceholdersItem = {
     depth: number,
 };
 
+type ExpandPlaceholdersAdditionItem = {
+    element: Element,
+    portalData: PortalData,
+};
+
+type ExpandPlaceholdersDeletionItem = {
+    element: Element,
+    portalData: PortalData,
+};
+
 export default class PortalManager {
     #_nextID: number;
     #elementMap: Map<Element, PortalData>;
@@ -142,7 +152,11 @@ export default class PortalManager {
         return undefined;
     }
 
-    expandPlaceholders(n: Node): void {
+    expandPlaceholders(
+        n: Node,
+        deletions: Array<ExpandPlaceholdersDeletionItem>,
+        additions: Array<ExpandPlaceholdersAdditionItem>,
+    ): void {
         // const portalIDDepths: Map<number, number> = new Map();
         const stack: Array<ExpandPlaceholdersItem> = [{
             node: n,
@@ -166,6 +180,14 @@ export default class PortalManager {
                     throw new Error('pd undefined');
                 }
                 const replacement = pd.cloneTemplate();
+                deletions.push({
+                    element: node,
+                    portalData: pd,
+                });
+                additions.push({
+                    element: replacement,
+                    portalData: pd,
+                });
                 node.replaceWith(replacement);
                 node = replacement;
             }
@@ -177,29 +199,42 @@ export default class PortalManager {
             }
         }
     }
-
+    // TODO: change to multi root storage + expand approach, i.e., store the roots
+    // of the top level portals, then when something changes update that template, 
+    // traverse downwards from roots. When a portal is hit, replace it with its template,
+    // then expand in place.
     updateChangedPortal(changedPortal: Element): PortalData {
         const pd = this.#elementMap.get(changedPortal);
         if (pd === undefined) {
             throw new Error('pd undefined');
         }
         pd.template = this.makeTemplate(changedPortal);
-        const additions = [];
-        const deletions = [];
+        {
+            const deletions = [];
+            const additions = [];
+            for (const p of pd.portals) {
+                const newP = pd.cloneTemplate();
+                deletions.push(p);
+                additions.push(newP);
+                p.replaceWith(newP);
+            }
+            for (const d of deletions) {
+                pd.portals.delete(d);
+            }
+            for (const a of additions) {
+                pd.portals.add(a);
+            }
+        }
+        const deletions: Array<ExpandPlaceholdersDeletionItem> = [];
+        const additions: Array<ExpandPlaceholdersAdditionItem> = [];
         for (const p of pd.portals) {
-            const newP = pd.cloneTemplate();
-            deletions.push(p);
-            additions.push(newP);
-            p.replaceWith(newP);
+            this.expandPlaceholders(p, deletions, additions);
         }
         for (const d of deletions) {
-            pd.portals.delete(d);
+            d.portalData.portals.delete(d.element);
         }
         for (const a of additions) {
-            pd.portals.add(a);
-        }
-        for (const p of pd.portals) {
-            this.expandPlaceholders(p);
+            a.portalData.portals.add(a.element);
         }
         return pd;
     }
@@ -223,7 +258,6 @@ export default class PortalManager {
 
     appendChild(parent: Node, e: Element): Element {
         const pd = this.#elementMap.get(e);
-        const oldE = e;
         if (pd !== undefined) {
             e = pd.cloneTemplate();
             this.#elementMap.set(e, pd);
@@ -231,10 +265,17 @@ export default class PortalManager {
         } else {
             e = this.makeTemplate(e);
         }
-        oldE.innerHTML = '<p>Use the return result of appendChild instead of this node</p>';
         parent.appendChild(e);
         if (this.updatePortalsContainingChangedNode(e) === undefined) {
-            this.expandPlaceholders(e);
+            const deletions: Array<ExpandPlaceholdersDeletionItem> = [];
+            const additions: Array<ExpandPlaceholdersAdditionItem> = [];
+            this.expandPlaceholders(e, deletions, additions);
+            for (const d of deletions) {
+                d.portalData.portals.delete(d.element);
+            }
+            for (const a of additions) {
+                a.portalData.portals.add(a.element);
+            }
         }
         return e;
     }

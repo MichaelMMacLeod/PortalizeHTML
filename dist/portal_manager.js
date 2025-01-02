@@ -51,20 +51,23 @@ var __classPrivateFieldGet = (undefined && undefined.__classPrivateFieldGet) || 
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
     return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 };
-var _PortalPlaceholder_portalID, _PortalManager__nextID, _PortalManager_elementMap, _PortalManager_portalIDMap;
+var _PortalManager__nextID, _PortalManager_elementMap, _PortalManager_portalIDMap;
+const MAX_RECURSION_DEPTH = 10;
 class PortalPlaceholder extends HTMLElement {
     constructor() {
         super();
-        _PortalPlaceholder_portalID.set(this, void 0);
     }
-    set portalID(portalID) {
-        __classPrivateFieldSet(this, _PortalPlaceholder_portalID, portalID, "f");
+    setPortalID(portalID) {
+        this.setAttribute('portal-id', portalID);
     }
-    get portalID() {
-        return __classPrivateFieldGet(this, _PortalPlaceholder_portalID, "f");
+    getPortalID() {
+        const v = this.getAttribute('portal-id');
+        if (v !== null) {
+            return v;
+        }
+        return undefined;
     }
 }
-_PortalPlaceholder_portalID = new WeakMap();
 customElements.define('portal-placeholder', PortalPlaceholder);
 class PortalData {
     constructor(portalID, template) {
@@ -89,16 +92,6 @@ function cloneNodeFilterMapImpl(n, filterMap) {
 function cloneNodeFilterMap(n, filterMap) {
     return cloneNodeFilterMapImpl(n, filterMap).result;
 }
-function* childrenDFS(n) {
-    const stack = [n];
-    while (stack.length > 0) {
-        const n = stack.pop();
-        for (const c of n.childNodes) {
-            yield c;
-            stack.push(c);
-        }
-    }
-}
 function* ancestors(node) {
     let n = node;
     while (n !== null) {
@@ -107,10 +100,6 @@ function* ancestors(node) {
             yield n;
         }
     }
-}
-function* ancestorsIncludingSelf(node) {
-    yield node;
-    yield* ancestors(node);
 }
 class PortalManager {
     constructor() {
@@ -129,7 +118,7 @@ class PortalManager {
     }
     get nextID() {
         var _a, _b;
-        return __classPrivateFieldSet(this, _PortalManager__nextID, (_b = __classPrivateFieldGet(this, _PortalManager__nextID, "f"), _a = _b++, _b), "f"), _a;
+        return (__classPrivateFieldSet(this, _PortalManager__nextID, (_b = __classPrivateFieldGet(this, _PortalManager__nextID, "f"), _a = _b++, _b), "f"), _a).toString();
     }
     makeTemplate(e) {
         let isTopLevel = true;
@@ -144,7 +133,7 @@ class PortalManager {
             const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(n);
             if (pd !== undefined) {
                 const result = document.createElement('portal-placeholder');
-                result.portalID = pd.portalID;
+                result.setPortalID(pd.portalID);
                 return {
                     result,
                     visitChildren: false,
@@ -157,7 +146,7 @@ class PortalManager {
     createElementPortal(tagName, options) {
         const e = document.createElement(tagName, options);
         const pd = new PortalData(this.nextID, this.makeTemplate(e));
-        __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").set(pd.portalID, pd);
+        __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").set(pd.portalID.toString(), pd);
         const result = pd.cloneTemplate();
         pd.portals.add(result);
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(result, pd);
@@ -173,28 +162,62 @@ class PortalManager {
         }
         return undefined;
     }
-    expandPlaceholders(n) {
-    }
-    appendChild(parent, e) {
-        const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(e);
-        if (pd !== undefined) {
-            e = pd.cloneTemplate();
-            __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(e, pd);
-            pd.portals.add(e);
-        }
-        else {
-            e = this.makeTemplate(e);
-        }
-        parent.appendChild(e);
-        const containingPortal = this.portalContainingNode(e);
-        if (containingPortal !== undefined) {
-            const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(containingPortal);
-            if (pd === undefined) {
-                throw new Error('pd undefined');
+    expandPlaceholders(n, deletions, additions) {
+        // const portalIDDepths: Map<number, number> = new Map();
+        const stack = [{
+                node: n,
+                depth: 0,
+            }];
+        while (stack.length > 0) {
+            const item = stack.pop();
+            if (item.depth >= MAX_RECURSION_DEPTH) {
+                return;
             }
-            pd.template = this.makeTemplate(containingPortal);
-            const additions = [];
+            let node = item.node;
+            let nextDepth = item.depth;
+            if (node instanceof PortalPlaceholder) {
+                nextDepth++;
+                const portalID = node.getPortalID();
+                if (portalID === undefined) {
+                    throw new Error('portalID undefined');
+                }
+                const pd = __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").get(portalID);
+                if (pd === undefined) {
+                    throw new Error('pd undefined');
+                }
+                const replacement = pd.cloneTemplate();
+                deletions.push({
+                    element: node,
+                    portalData: pd,
+                });
+                additions.push({
+                    element: replacement,
+                    portalData: pd,
+                });
+                node.replaceWith(replacement);
+                node = replacement;
+            }
+            for (const c of node.childNodes) {
+                stack.push({
+                    node: c,
+                    depth: nextDepth,
+                });
+            }
+        }
+    }
+    // TODO: change to multi root storage + expand approach, i.e., store the roots
+    // of the top level portals, then when something changes update that template, 
+    // traverse downwards from roots. When a portal is hit, replace it with its template,
+    // then expand in place.
+    updateChangedPortal(changedPortal) {
+        const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(changedPortal);
+        if (pd === undefined) {
+            throw new Error('pd undefined');
+        }
+        pd.template = this.makeTemplate(changedPortal);
+        {
             const deletions = [];
+            const additions = [];
             for (const p of pd.portals) {
                 const newP = pd.cloneTemplate();
                 deletions.push(p);
@@ -207,43 +230,59 @@ class PortalManager {
             for (const a of additions) {
                 pd.portals.add(a);
             }
-            for (const p of pd.portals) {
-                this.expandPlaceholders(p);
-            }
+        }
+        const deletions = [];
+        const additions = [];
+        for (const p of pd.portals) {
+            this.expandPlaceholders(p, deletions, additions);
+        }
+        for (const d of deletions) {
+            d.portalData.portals.delete(d.element);
+        }
+        for (const a of additions) {
+            a.portalData.portals.add(a.element);
+        }
+        return pd;
+    }
+    // Returns the portal data of the containing portal, if there is one.
+    updatePortalsContainingChangedNode(node) {
+        const containingPortal = this.portalContainingNode(node);
+        if (containingPortal !== undefined) {
+            return this.updateChangedPortal(containingPortal);
         }
         else {
-            this.expandPlaceholders(e);
+            return undefined;
+        }
+    }
+    observeNodeChanged(node) {
+        if (node instanceof Element && __classPrivateFieldGet(this, _PortalManager_elementMap, "f").has(node)) {
+            this.updateChangedPortal(node);
+        }
+        this.updatePortalsContainingChangedNode(node);
+    }
+    appendChild(parent, e) {
+        const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(e);
+        if (pd !== undefined) {
+            e = pd.cloneTemplate();
+            __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(e, pd);
+            pd.portals.add(e);
+        }
+        else {
+            e = this.makeTemplate(e);
+        }
+        parent.appendChild(e);
+        if (this.updatePortalsContainingChangedNode(e) === undefined) {
+            const deletions = [];
+            const additions = [];
+            this.expandPlaceholders(e, deletions, additions);
+            for (const d of deletions) {
+                d.portalData.portals.delete(d.element);
+            }
+            for (const a of additions) {
+                a.portalData.portals.add(a.element);
+            }
         }
         return e;
-        // const portalContainingParent = this.portalContainingNode(parent);
-        // if (portalContainingParent !== undefined) {
-        // }
-        // const containingPD = 
-        // 'e' may be a portal, and it may contain portals (however indirectly)
-        // 'parent' may be a portal, or it may be contained in a portal (however indirectly).
-        // case 1: 'e' is not a portal, contains no portals, and 'parent' is not a portal, 
-        //         nor contained in any portals
-        // - do parent.appendChild(e)
-        // case 2: 'e' is a portal, contains no portals, and 'parent' is not a portal,
-        //         nor contained in any portals
-        // - make a template of e
-        // - register template, add to portals
-        // - append template to parent
-        // - expand portals in template
-        // case 3: 'e' is a portal, contains one or more portals, and 'parent' is not a portal,
-        //         nor contained in any portals
-        // - (same as case 2)
-        // case 4: 'e' is a portal, contains one or more portals, and 'parent' is a portal, but
-        //         is not contained in any portals
-        // - do case 2 stuff but do not yet expand portals
-        // - make template of parent
-        // - swap parent portal template for the new one
-        // - replace all registered parent portals with new cloned templates
-        // - expand portals in all cloned templates
-        // case 5: ... 'parent' is contain in other portals
-        // same as case 4?
-        // parent.appendChild(e);
-        // return e;
     }
 }
 _PortalManager__nextID = new WeakMap(), _PortalManager_elementMap = new WeakMap(), _PortalManager_portalIDMap = new WeakMap();
