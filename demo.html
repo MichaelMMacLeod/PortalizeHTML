@@ -15,19 +15,13 @@
   <script>
     const PortalManager = portal_manager.default;
 
-const pm = new PortalManager();
-
-const bg1 = 'lightblue';
-const d1 = document.createElement('div');
-d1.style.background = bg1;
-const p1 = pm.appendChildPortal(document.body, d1);
-
-const bg2 = 'limegreen';
-const d2 = document.createElement('div');
-d2.style.background = bg2;
-const p2 = pm.appendChildPortal(p1, d2);
-
-const p3 = pm.appendChildPortal(document.body, p1);
+    const pm = new PortalManager();
+    let d = pm.createElementPortal('div');
+    d.style.background = 'red';
+    d.width = '10em';
+    d.height = '10em';
+    d = pm.appendChild(document.body, d);
+    debugger;
     // const pm = new PortalManager();
     // const d = document.createElement('div');
     // d.style.width = '100%';

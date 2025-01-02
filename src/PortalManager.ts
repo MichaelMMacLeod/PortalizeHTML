@@ -1,8 +1,27 @@
+export class PortalPlaceholder extends HTMLElement {
+    #portalID: number | undefined;
+
+    constructor() {
+        super();
+    }
+
+    set portalID(portalID: number) {
+        this.#portalID = portalID;
+    }
+
+    get portalID(): number | undefined {
+        return this.#portalID;
+    }
+}
+customElements.define('portal-placeholder', PortalPlaceholder);
+
 class PortalData {
+    portalID: number;
     template: Element;
     portals: Set<Element>;
 
-    constructor(template: Element) {
+    constructor(portalID: number, template: Element) {
+        this.portalID = portalID;
         this.template = template;
         this.portals = new Set();
     }
@@ -20,7 +39,7 @@ type CloneNodeFilterMapFunctionResult = {
 type CloneNodeFilterMapFunction = (n: Node) => CloneNodeFilterMapFunctionResult;
 
 function cloneNodeFilterMapImpl(n: Node, filterMap: CloneNodeFilterMapFunction): CloneNodeFilterMapFunctionResult {
-    const nClone = filterMap(n.cloneNode());
+    const nClone = filterMap(n);
     if (nClone.visitChildren) {
         n.childNodes.forEach(cn => {
             const cnClone = cloneNodeFilterMapImpl(cn, filterMap);
@@ -61,26 +80,48 @@ function* ancestorsIncludingSelf(node: Node): Generator<Node> {
 }
 
 export default class PortalManager {
-    #registry: WeakMap<Element, PortalData>;
+    #_nextID: number;
+    #elementMap: Map<Element, PortalData>;
+    #portalIDMap: Map<number, PortalData>;
 
     constructor() {
-        this.#registry = new Map();
+        this.#_nextID = 0;
+        this.#elementMap = new Map();
+        this.#portalIDMap = new Map();
     }
 
-    private makeTemplate(e: Element): Element {
+    get unsafeElementMap() {
+        return this.#elementMap;
+    }
+
+    get unsafePortalIDMap() {
+        return this.#portalIDMap;
+    }
+
+    get nextID(): number {
+        return this.#_nextID++;
+    }
+
+    makeTemplate(e: Element): Element {
         let isTopLevel = true;
         const eClone = cloneNodeFilterMap(e, n => {
             if (isTopLevel) {
                 isTopLevel = false;
-                return { result: n, visitChildren: true };
+                return { result: n.cloneNode(), visitChildren: true };
             }
             if (!(n instanceof Element)) {
-                return { result: n, visitChildren: false };
+                return { result: n.cloneNode(), visitChildren: true };
             }
-            if (this.#registry.has(n)) {
-                return { result: n, visitChildren: false };
+            const pd = this.#elementMap.get(n);
+            if (pd !== undefined) {
+                const result = document.createElement('portal-placeholder') as PortalPlaceholder;
+                result.portalID = pd.portalID;
+                return {
+                    result,
+                    visitChildren: false,
+                };
             }
-            return { result: n, visitChildren: true };
+            return { result: n.cloneNode(), visitChildren: true };
         });
         return eClone as Element;
     }
@@ -89,27 +130,18 @@ export default class PortalManager {
         tagName: K, options?: ElementCreationOptions
     ): HTMLElementTagNameMap[K] {
         const e = document.createElement(tagName, options);
-        const pd = new PortalData(this.makeTemplate(e).template);
+        const pd = new PortalData(this.nextID, this.makeTemplate(e));
+        this.#portalIDMap.set(pd.portalID, pd);
         const result = pd.cloneTemplate() as HTMLElementTagNameMap[K];
         pd.portals.add(result);
-        this.#registry.set(result, pd);
+        this.#elementMap.set(result, pd);
         return result;
     }
 
-    private nodeContainsPortalChild(n: Node): boolean {
-        for (const c of childrenDFS(n)) {
-            if (c instanceof Element && this.#registry.has(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private portalContainingNode(n: Node): Element | undefined {
+    portalContainingNode(n: Node): Element | undefined {
         for (const a of ancestors(n)) {
             if (a instanceof Element) {
-                const pd = this.#registry.get(a);
-                if (pd !== undefined) {
+                if (this.#elementMap.has(a)) {
                     return a;
                 }
             }
@@ -117,27 +149,50 @@ export default class PortalManager {
         return undefined;
     }
 
+    expandPlaceholders(n: Node): void {
+
+    }
+
     appendChild(parent: Node, e: Element): Element {
-        const pd = this.#registry.get(e);
-        const eIsPortal = pd !== undefined;
-        const eContainsPortal = this.nodeContainsPortalChild(e)
+        const pd = this.#elementMap.get(e);
+        const oldE = e;
         if (pd !== undefined) {
             e = pd.cloneTemplate();
-            this.#registry.set(e, pd);
+            this.#elementMap.set(e, pd);
             pd.portals.add(e);
+        } else {
+            e = this.makeTemplate(e);
         }
+        oldE.innerHTML = '<p>Use the return result of appendChild instead of this node</p>';
         parent.appendChild(e);
         const containingPortal = this.portalContainingNode(e);
         if (containingPortal !== undefined) {
-            const pd = this.#registry.get(containingPortal);
+            const pd = this.#elementMap.get(containingPortal);
             if (pd === undefined) {
                 throw new Error('pd undefined');
             }
             pd.template = this.makeTemplate(containingPortal);
+            const additions = [];
+            const deletions = [];
             for (const p of pd.portals) {
-                
+                const newP = pd.cloneTemplate();
+                deletions.push(p);
+                additions.push(newP);
+                p.replaceWith(newP);
             }
+            for (const d of deletions) {
+                pd.portals.delete(d);
+            }
+            for (const a of additions) {
+                pd.portals.add(a);
+            }
+            for (const p of pd.portals) {
+                this.expandPlaceholders(p);
+            }
+        } else {
+            this.expandPlaceholders(e);
         }
+        return e;
         // const portalContainingParent = this.portalContainingNode(parent);
         // if (portalContainingParent !== undefined) {
 
@@ -176,6 +231,15 @@ export default class PortalManager {
         // return e;
     }
 
+
+    // private nodeContainsPortalChild(n: Node): boolean {
+    //     for (const c of childrenDFS(n)) {
+    //         if (c instanceof Element && this.#elementMap.has(c)) {
+    //             return true;
+    //         }
+    //     }
+    //     return false;
+    // }
     // private initialize(e: Element): PortalData {
     //     let pd = this.#registry.get(e);
     //     if (pd !== undefined) {
@@ -187,9 +251,9 @@ export default class PortalManager {
     // }
 
 
-    expandPortals(node: Node) {
+    // expandPortals(node: Node) {
 
-    }
+    // }
 
     // appendChildPortal(parent: Node, e: Element): Element {
     //     let pd = this.#registry.get(e);
@@ -224,20 +288,20 @@ export default class PortalManager {
     //     }
     // }
 
-    observeNodeAdded(n: Node): void {
+    // observeNodeAdded(n: Node): void {
 
-    }
+    // }
 
-    observeNodeRemoved(n: Node): void {
+    // observeNodeRemoved(n: Node): void {
 
-    }
+    // }
 
-    observeAttributeChanged(n: Node, attributeName: string): void {
+    // observeAttributeChanged(n: Node, attributeName: string): void {
 
-    }
+    // }
 
-    // Only use this for debugging/testing. This should be considered read-only.
-    get unsafeRegistry() {
-        return this.#registry;
-    }
+    // // Only use this for debugging/testing. This should be considered read-only.
+    // get unsafeRegistry() {
+    //     return this.#registry;
+    // }
 }
