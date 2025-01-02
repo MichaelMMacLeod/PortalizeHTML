@@ -4,7 +4,7 @@ const TerserPlugin = require('terser-webpack-plugin');
 module.exports = {
     mode: 'production',
     entry: {
-        portal_element: "./src/PortalElement.ts",
+        portal_manager: "./src/PortalManager.ts",
     },
     module: {
         rules: [

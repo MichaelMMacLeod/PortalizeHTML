@@ -11,46 +11,51 @@
 </head>
 
 <body>
-  <script src="dist/portal_element.js"></script>
+  <script src="dist/portal_manager.js"></script>
   <script>
-    const d = document.createElement('div');
-    d.style.width = '100%';
-    d.style.display = 'flex';
-    d.style.flexDirection = 'row';
-    d.style.fontSize = '0.5em';
-    d.style.marginTop = 'auto';
-    d.style.marginBottom = 'auto';
-    d.style.justifyContent = 'center';
-    const b = document.createElement('img');
-    b.style.width = '50%';
-    b.style.height = '50%';
-    b.src = 'https://senseis.xmp.net/diagrams/15/1767305ca690294311ed6e1847b8f8a4.png';
-    b.style.margin = '1em';
-    d.appendChild(b);
-    d.setAttribute('portal-id', '1');
-    // const t = document.createElement('input');
-    // t.textContent = 'Hello, world!';
-    // d.appendChild(t);
-    window.pe = document.createElement('portal-element');
-    document.body.appendChild(pe);
+    const PortalManager = portal_manager.default;
 
-    pe.appendChild(d);
+const pm = new PortalManager();
 
-    const d2 = document.createElement('div');
-    d2.setAttribute('portal-id', '1');
-    d.appendChild(d2);
-    // pe.appendChild(d2);
+const bg1 = 'lightblue';
+const d1 = document.createElement('div');
+d1.style.background = bg1;
+const p1 = pm.appendChildPortal(document.body, d1);
+
+const bg2 = 'limegreen';
+const d2 = document.createElement('div');
+d2.style.background = bg2;
+const p2 = pm.appendChildPortal(p1, d2);
+
+const p3 = pm.appendChildPortal(document.body, p1);
+    // const pm = new PortalManager();
+    // const d = document.createElement('div');
+    // d.style.width = '100%';
+    // d.style.display = 'flex';
+    // d.style.flexDirection = 'row';
+    // d.style.fontSize = '0.5em';
+    // d.style.marginTop = 'auto';
+    // d.style.marginBottom = 'auto';
+    // d.style.justifyContent = 'center';
+    // const b = document.createElement('img');
+    // b.style.width = '50%';
+    // b.style.height = '50%';
+    // b.src = 'https://senseis.xmp.net/diagrams/15/1767305ca690294311ed6e1847b8f8a4.png';
+    // b.style.margin = '1em';
+    // d.appendChild(b);
+    // const p1 = pm.appendChildPortal(document.body, d);
+    // const p2 = pm.appendChildPortal(p1, p1);
     
-    function randomColor() {
-      return '#' + Math.floor(Math.random()*16777215).toString(16);
-    }
-    function changeColors() {
-      pe.childNodes[0].
-      b.style.background = randomColor();
-    }
-
-    // // p1.appendChild(p1);
-    // // p.appendChild(p);
+    // function randomColor() {
+    //   return '#' + Math.floor(Math.random()*16777215).toString(16);
+    // }
+    // function changeColors() {
+    //   pe.childNodes[0].
+    //   b.style.background = randomColor();
+    // }
+    // debugger;
+    // // // p1.appendChild(p1);
+    // // // p.appendChild(p);
   </script>
   <button onclick="changeColors()">Change Colors</button>
 </body>

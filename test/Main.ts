@@ -1,38 +1,46 @@
-jest.useFakeTimers();
+import PortalManager from "../src/PortalManager";
 
-test('two portals', done => {
-    const p = document.createElement('portal-element') as PortalElement;
-    document.body.appendChild(p);
-    const d1 = document.createElement('div');
-    const background = 'lightblue';
-    d1.style.background = background;
-    d1.setAttribute('portal-id', '1');
-    const d2 = document.createElement('div');
-    d2.setAttribute('portal-id', '1');
-    p.appendChild(d1);
-    p.appendChild(d2);
-    setTimeout(() => {
-        const newD1 = p.childNodes[0];
-        const newD2 = p.childNodes[1];
-        console.error(newD1);
-        console.error(newD2);
-        expect(newD1).toEqual(d1);
-        expect(newD1).toEqual(newD2);
-        expect(newD2).toEqual(d1);
-        expect(newD2).toEqual(newD1);
-        expect(newD1).toBeInstanceOf(HTMLDivElement);
-        expect(newD2).toBeInstanceOf(HTMLDivElement);
-        const newD1E: HTMLDivElement = newD1 as any;
-        const newD2E: HTMLDivElement = newD1 as any;
-        expect(newD1E.getAttribute('portal-id')).toBe('1');
-        expect(newD2E.getAttribute('portal-id')).toBe('1');
-        expect(newD1E.style.background).toBe(background);
-        expect(newD2E.style.background).toBe(background);
-        done();
-    }, 500);
-    jest.runAllTimers();
+// Things we add to the document persist between tests in the
+// same file, so make sure to create a new document before each
+// test runs.
+let document = new Document();
+beforeEach(() => {
+    document = document.implementation.createHTMLDocument();
 });
 
-// test('portal inside itself', () => {
-//     const p = document.createElement('portal-element') as PortalElement;
-// });
+test('appendChild portal', () => {
+    const pm = new PortalManager();
+    const d = pm.createElementPortal('div');
+    d.style.background = 'red';
+    const d1 = pm.appendChild(document.body, d);
+    const d2 = pm.appendChild(document.body, d);
+    expect(d).toStrictEqual(d1);
+    expect(d1).toStrictEqual(d2);
+});
+
+test('div#0/p div#0/p', () => {
+    const pm = new PortalManager();
+    const d = pm.createElementPortal('div');
+    pm.appendChild(d, document.createElement('p'));
+    pm.appendChild(document.body, d);
+    pm.appendChild(document.body, d);
+    expect(document.body.childNodes[0]).toStrictEqual(d);
+    expect(document.body.childNodes[1]).toStrictEqual(d);
+});
+
+test('div#0/div/div#1/p div#0/div/div#1/p', () => {
+    const pm = new PortalManager();
+    const p1 = pm.createElementPortal('div');
+    pm.appendChild(p1, document.createElement('p'));
+    const p0 = pm.createElementPortal('div');
+    const d = document.createElement('div');
+    pm.appendChild(p0, d);
+    pm.appendChild(d, p1);
+    pm.appendChild(document.body, p0);
+    pm.appendChild(document.body, p0);
+    const template = document.createElement('div');
+    template.innerHTML = '<div><div><p/></div></div>';
+    expect(p0).toStrictEqual(template);
+    expect(document.body.childNodes[0]).toStrictEqual(template);
+    expect(document.body.childNodes[1]).toStrictEqual(template);
+});
