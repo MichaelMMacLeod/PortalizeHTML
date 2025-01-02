@@ -49,23 +49,12 @@ test('portal div with background color', () => {
     const pm = new PortalManager();
     let d = pm.createElementPortal('div');
     d.style.background = 'red';
+    pm.observeNodeChanged(d);
     d = pm.appendChild(document.body, d) as HTMLDivElement;
     const expected = document.createElement('body');
     expected.innerHTML = '<div style="background: red;"></div>';
     expect(document.body).toStrictEqual(expected);
 });
-
-// test('styled div#0 div#0', () => {
-//     const pm = new PortalManager();
-//     const d = pm.createElementPortal('div');
-//     d.style.background = 'red';
-//     const d1 = pm.appendChild(document.body, d);
-//     const d2 = pm.appendChild(document.body, d);
-//     const dHTML = '<div style="background: red;"></div>';
-//     const expected = `${dHTML}${dHTML}`;
-//     console.error(document.body.innerHTML);
-//     expect(document.body).toStrictEqual(expected);
-// });
 
 test('div#0/p div#0/p', () => {
     const pm = new PortalManager();

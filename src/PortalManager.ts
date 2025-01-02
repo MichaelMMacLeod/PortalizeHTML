@@ -153,6 +153,49 @@ export default class PortalManager {
 
     }
 
+    updateChangedPortal(changedPortal: Element): PortalData {
+        const pd = this.#elementMap.get(changedPortal);
+        if (pd === undefined) {
+            throw new Error('pd undefined');
+        }
+        pd.template = this.makeTemplate(changedPortal);
+        const additions = [];
+        const deletions = [];
+        for (const p of pd.portals) {
+            const newP = pd.cloneTemplate();
+            deletions.push(p);
+            additions.push(newP);
+            p.replaceWith(newP);
+        }
+        for (const d of deletions) {
+            pd.portals.delete(d);
+        }
+        for (const a of additions) {
+            pd.portals.add(a);
+        }
+        for (const p of pd.portals) {
+            this.expandPlaceholders(p);
+        }
+        return pd;
+    }
+
+    // Returns the portal data of the containing portal, if there is one.
+    updatePortalsContainingChangedNode(node: Node): PortalData | undefined {
+        const containingPortal = this.portalContainingNode(node);
+        if (containingPortal !== undefined) {
+            return this.updateChangedPortal(containingPortal);
+        } else {
+            return undefined;
+        }
+    }
+
+    observeNodeChanged(node: Node): void {
+        if (node instanceof Element && this.#elementMap.has(node)) {
+            this.updateChangedPortal(node);
+        }
+        this.updatePortalsContainingChangedNode(node);
+    }
+
     appendChild(parent: Node, e: Element): Element {
         const pd = this.#elementMap.get(e);
         const oldE = e;
@@ -165,70 +208,10 @@ export default class PortalManager {
         }
         oldE.innerHTML = '<p>Use the return result of appendChild instead of this node</p>';
         parent.appendChild(e);
-        const containingPortal = this.portalContainingNode(e);
-        if (containingPortal !== undefined) {
-            const pd = this.#elementMap.get(containingPortal);
-            if (pd === undefined) {
-                throw new Error('pd undefined');
-            }
-            pd.template = this.makeTemplate(containingPortal);
-            const additions = [];
-            const deletions = [];
-            for (const p of pd.portals) {
-                const newP = pd.cloneTemplate();
-                deletions.push(p);
-                additions.push(newP);
-                p.replaceWith(newP);
-            }
-            for (const d of deletions) {
-                pd.portals.delete(d);
-            }
-            for (const a of additions) {
-                pd.portals.add(a);
-            }
-            for (const p of pd.portals) {
-                this.expandPlaceholders(p);
-            }
-        } else {
+        if (this.updatePortalsContainingChangedNode(e) === undefined) {
             this.expandPlaceholders(e);
         }
         return e;
-        // const portalContainingParent = this.portalContainingNode(parent);
-        // if (portalContainingParent !== undefined) {
-
-        // }
-        // const containingPD = 
-        // 'e' may be a portal, and it may contain portals (however indirectly)
-        // 'parent' may be a portal, or it may be contained in a portal (however indirectly).
-
-        // case 1: 'e' is not a portal, contains no portals, and 'parent' is not a portal, 
-        //         nor contained in any portals
-        // - do parent.appendChild(e)
-
-        // case 2: 'e' is a portal, contains no portals, and 'parent' is not a portal,
-        //         nor contained in any portals
-        // - make a template of e
-        // - register template, add to portals
-        // - append template to parent
-        // - expand portals in template
-
-        // case 3: 'e' is a portal, contains one or more portals, and 'parent' is not a portal,
-        //         nor contained in any portals
-        // - (same as case 2)
-
-        // case 4: 'e' is a portal, contains one or more portals, and 'parent' is a portal, but
-        //         is not contained in any portals
-        // - do case 2 stuff but do not yet expand portals
-        // - make template of parent
-        // - swap parent portal template for the new one
-        // - replace all registered parent portals with new cloned templates
-        // - expand portals in all cloned templates
-
-        // case 5: ... 'parent' is contain in other portals
-        // same as case 4?
-
-        // parent.appendChild(e);
-        // return e;
     }
 
 
