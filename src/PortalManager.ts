@@ -1,26 +1,30 @@
-export class PortalPlaceholder extends HTMLElement {
-    #portalID: number | undefined;
+const MAX_RECURSION_DEPTH = 10;
 
+export class PortalPlaceholder extends HTMLElement {
     constructor() {
         super();
     }
 
-    set portalID(portalID: number) {
-        this.#portalID = portalID;
+    setPortalID(portalID: string) {
+        this.setAttribute('portal-id', portalID);
     }
 
-    get portalID(): number | undefined {
-        return this.#portalID;
+    getPortalID(): string | undefined {
+        const v = this.getAttribute('portal-id');
+        if (v !== null) {
+            return v;
+        }
+        return undefined;
     }
 }
 customElements.define('portal-placeholder', PortalPlaceholder);
 
 class PortalData {
-    portalID: number;
+    portalID: string;
     template: Element;
     portals: Set<Element>;
 
-    constructor(portalID: number, template: Element) {
+    constructor(portalID: string, template: Element) {
         this.portalID = portalID;
         this.template = template;
         this.portals = new Set();
@@ -53,17 +57,6 @@ function cloneNodeFilterMap(n: Node, filterMap: CloneNodeFilterMapFunction): Nod
     return cloneNodeFilterMapImpl(n, filterMap).result;
 }
 
-function* childrenDFS(n: Node): Generator<Node> {
-    const stack = [n];
-    while (stack.length > 0) {
-        const n = stack.pop() as Node;
-        for (const c of n.childNodes) {
-            yield c;
-            stack.push(c);
-        }
-    }
-}
-
 function* ancestors(node: Node): Generator<Node> {
     let n: Node | null = node;
     while (n !== null) {
@@ -74,15 +67,15 @@ function* ancestors(node: Node): Generator<Node> {
     }
 }
 
-function* ancestorsIncludingSelf(node: Node): Generator<Node> {
-    yield node;
-    yield* ancestors(node);
-}
+type ExpandPlaceholdersItem = {
+    node: Node,
+    depth: number,
+};
 
 export default class PortalManager {
     #_nextID: number;
     #elementMap: Map<Element, PortalData>;
-    #portalIDMap: Map<number, PortalData>;
+    #portalIDMap: Map<string, PortalData>;
 
     constructor() {
         this.#_nextID = 0;
@@ -98,8 +91,8 @@ export default class PortalManager {
         return this.#portalIDMap;
     }
 
-    get nextID(): number {
-        return this.#_nextID++;
+    get nextID(): string {
+        return (this.#_nextID++).toString();
     }
 
     makeTemplate(e: Element): Element {
@@ -115,7 +108,7 @@ export default class PortalManager {
             const pd = this.#elementMap.get(n);
             if (pd !== undefined) {
                 const result = document.createElement('portal-placeholder') as PortalPlaceholder;
-                result.portalID = pd.portalID;
+                result.setPortalID(pd.portalID);
                 return {
                     result,
                     visitChildren: false,
@@ -131,7 +124,7 @@ export default class PortalManager {
     ): HTMLElementTagNameMap[K] {
         const e = document.createElement(tagName, options);
         const pd = new PortalData(this.nextID, this.makeTemplate(e));
-        this.#portalIDMap.set(pd.portalID, pd);
+        this.#portalIDMap.set(pd.portalID.toString(), pd);
         const result = pd.cloneTemplate() as HTMLElementTagNameMap[K];
         pd.portals.add(result);
         this.#elementMap.set(result, pd);
@@ -150,7 +143,39 @@ export default class PortalManager {
     }
 
     expandPlaceholders(n: Node): void {
-
+        // const portalIDDepths: Map<number, number> = new Map();
+        const stack: Array<ExpandPlaceholdersItem> = [{
+            node: n,
+            depth: 0,
+        }];
+        while (stack.length > 0) {
+            const item = stack.pop() as ExpandPlaceholdersItem;
+            if (item.depth >= MAX_RECURSION_DEPTH) {
+                return;
+            }
+            let node = item.node;
+            let nextDepth = item.depth;
+            if (node instanceof PortalPlaceholder) {
+                nextDepth++;
+                const portalID = node.getPortalID();
+                if (portalID === undefined) {
+                    throw new Error('portalID undefined');
+                }
+                const pd = this.#portalIDMap.get(portalID);
+                if (pd === undefined) {
+                    throw new Error('pd undefined');
+                }
+                const replacement = pd.cloneTemplate();
+                node.replaceWith(replacement);
+                node = replacement;
+            }
+            for (const c of node.childNodes) {
+                stack.push({
+                    node: c,
+                    depth: nextDepth,
+                });
+            }
+        }
     }
 
     updateChangedPortal(changedPortal: Element): PortalData {

@@ -16,11 +16,21 @@
     const PortalManager = portal_manager.default;
 
     const pm = new PortalManager();
-    let d = pm.createElementPortal('div');
-    d.style.background = 'red';
-    d.width = '10em';
-    d.height = '10em';
-    d = pm.appendChild(document.body, d);
+    const d1 = pm.createElementPortal('div');
+    const d2 = pm.createElementPortal('div');
+    pm.appendChild(d1, d2);
+    const pd1 = pm.unsafeElementMap.get(d1);
+    const pd2 = pm.unsafeElementMap.get(d2);
+    if (pd1 === undefined) {
+        throw new Error('pd1 undefined');
+    }
+    if (pd2 === undefined) {
+        throw new Error('pd2 undefined');
+    }
+    const d1Template = document.createElement('div');
+    const ph = document.createElement('portal-placeholder');
+    ph.setPortalID(pd2.portalID);
+    d1Template.appendChild(ph);
     debugger;
     // const pm = new PortalManager();
     // const d = document.createElement('div');

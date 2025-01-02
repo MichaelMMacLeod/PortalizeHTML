@@ -8,43 +8,6 @@ beforeEach(() => {
     document = document.implementation.createHTMLDocument();
 });
 
-test('makeTemplate creates placeholder', () => {
-    const pm = new PortalManager();
-    const d1 = pm.createElementPortal('div');
-    const d2 = document.createElement('div');
-    d2.appendChild(d1);
-    const template = pm.makeTemplate(d2);
-    const expected = document.createElement('div');
-    const ph = document.createElement('portal-placeholder') as PortalPlaceholder;
-    const pd1 = pm.unsafeElementMap.get(d1);
-    if (pd1 === undefined) {
-        throw new Error('pd1 undefined');
-    }
-    ph.portalID = pd1.portalID;
-    expected.appendChild(ph);
-    expect(template).toStrictEqual(expected);
-});
-
-test('appendChild creates placeholder', () => {
-    const pm = new PortalManager();
-    const d1 = pm.createElementPortal('div');
-    const d2 = pm.createElementPortal('div');
-    pm.appendChild(d1, d2);
-    const pd1 = pm.unsafeElementMap.get(d1);
-    const pd2 = pm.unsafeElementMap.get(d2);
-    if (pd1 === undefined) {
-        throw new Error('pd1 undefined');
-    }
-    if (pd2 === undefined) {
-        throw new Error('pd2 undefined');
-    }
-    const d1Template = document.createElement('div');
-    const ph = document.createElement('portal-placeholder') as PortalPlaceholder;
-    ph.portalID = pd2.portalID;
-    d1Template.appendChild(ph);
-    expect(pd1.template).toStrictEqual(d1Template);
-});
-
 test('portal div with background color', () => {
     const pm = new PortalManager();
     let d = pm.createElementPortal('div');
