@@ -73,7 +73,6 @@ class PortalData {
     constructor(portalID, template) {
         this.portalID = portalID;
         this.template = template;
-        this.portals = new Set();
     }
     cloneTemplate() {
         return this.template.cloneNode(true);
@@ -148,7 +147,6 @@ class PortalManager {
         const pd = new PortalData(this.nextID, this.makeTemplate(e));
         __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").set(pd.portalID.toString(), pd);
         const result = pd.cloneTemplate();
-        pd.portals.add(result);
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(result, pd);
         return result;
     }
@@ -162,7 +160,7 @@ class PortalManager {
         }
         return undefined;
     }
-    expandPlaceholders(n, deletions, additions) {
+    expandPlaceholders(n) {
         // const portalIDDepths: Map<number, number> = new Map();
         const stack = [{
                 node: n,
@@ -186,14 +184,6 @@ class PortalManager {
                     throw new Error('pd undefined');
                 }
                 const replacement = pd.cloneTemplate();
-                deletions.push({
-                    element: node,
-                    portalData: pd,
-                });
-                additions.push({
-                    element: replacement,
-                    portalData: pd,
-                });
                 node.replaceWith(replacement);
                 node = replacement;
             }
@@ -205,43 +195,12 @@ class PortalManager {
             }
         }
     }
-    // TODO: change to multi root storage + expand approach, i.e., store the roots
-    // of the top level portals, then when something changes update that template, 
-    // traverse downwards from roots. When a portal is hit, replace it with its template,
-    // then expand in place.
     updateChangedPortal(changedPortal) {
         const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(changedPortal);
         if (pd === undefined) {
             throw new Error('pd undefined');
         }
         pd.template = this.makeTemplate(changedPortal);
-        {
-            const deletions = [];
-            const additions = [];
-            for (const p of pd.portals) {
-                const newP = pd.cloneTemplate();
-                deletions.push(p);
-                additions.push(newP);
-                p.replaceWith(newP);
-            }
-            for (const d of deletions) {
-                pd.portals.delete(d);
-            }
-            for (const a of additions) {
-                pd.portals.add(a);
-            }
-        }
-        const deletions = [];
-        const additions = [];
-        for (const p of pd.portals) {
-            this.expandPlaceholders(p, deletions, additions);
-        }
-        for (const d of deletions) {
-            d.portalData.portals.delete(d.element);
-        }
-        for (const a of additions) {
-            a.portalData.portals.add(a.element);
-        }
         return pd;
     }
     // Returns the portal data of the containing portal, if there is one.
@@ -265,22 +224,13 @@ class PortalManager {
         if (pd !== undefined) {
             e = pd.cloneTemplate();
             __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(e, pd);
-            pd.portals.add(e);
         }
         else {
             e = this.makeTemplate(e);
         }
         parent.appendChild(e);
         if (this.updatePortalsContainingChangedNode(e) === undefined) {
-            const deletions = [];
-            const additions = [];
-            this.expandPlaceholders(e, deletions, additions);
-            for (const d of deletions) {
-                d.portalData.portals.delete(d.element);
-            }
-            for (const a of additions) {
-                a.portalData.portals.add(a.element);
-            }
+            this.expandPlaceholders(e);
         }
         return e;
     }
