@@ -48,15 +48,13 @@ type ExpandPlaceholdersItem = {
 
 export default class PortalManager {
     #_nextID: number;
-    #elementMap: Map<Element, PortalData>;
     #portalIDMap: Map<string, PortalData>;
-    #roots: Set<Element>;
+    #roots: Map<Element, PortalData>;
 
     constructor() {
         this.#_nextID = 0;
-        this.#elementMap = new Map();
         this.#portalIDMap = new Map();
-        this.#roots = new Set();
+        this.#roots = new Map();
     }
 
     pdOf(portalID: string): PortalData {
@@ -67,12 +65,12 @@ export default class PortalManager {
         return result;
     }
 
-    pdOfElement(e: Element): PortalData {
-        const pd = this.#elementMap.get(e);
-        if (pd === undefined) {
+    pdOfRoot(root: Element): PortalData {
+        const result = this.#roots.get(root);
+        if (result === undefined) {
             throw new Error('pd undefined');
         }
-        return pd;
+        return result;
     }
 
     templateOf(portalID: string): Element {
@@ -96,18 +94,16 @@ export default class PortalManager {
     }
 
     replacePortalWithPlaceholder(
-        p: Element,
+        e: Element,
+        pd: PortalData,
         rootDeletions: Array<Element>,
-        rootAdditions: Array<Element>,
+        rootAdditions: Array<[Element, PortalData]>,
     ): PortalPlaceholder {
-        const pd = this.pdOfElement(p);
-        this.#elementMap.delete(p);
         const ph = pd.createPlaceholder();
-        this.#elementMap.set(ph, pd);
-        p.replaceWith(ph);
-        if (this.#roots.has(p)) {
-            rootDeletions.push(p);
-            rootAdditions.push(ph);
+        e.replaceWith(ph);
+        if (this.#roots.has(e)) {
+            rootDeletions.push(e);
+            rootAdditions.push([ph, pd]);
         }
         return ph;
     }
@@ -115,16 +111,14 @@ export default class PortalManager {
     replacePlaceholderWithElement(
         ph: PortalPlaceholder,
         rootDeletions: Array<Element>,
-        rootAdditions: Array<Element>,
+        rootAdditions: Array<[Element, PortalData]>,
     ): Element {
         const pd = this.pdOf(ph.getPortalID());
-        this.#elementMap.delete(ph);
         const template = pd.cloneTemplate();
-        this.#elementMap.set(template, pd);
         ph.replaceWith(template);
         if (this.#roots.has(ph)) {
             rootDeletions.push(ph);
-            rootAdditions.push(template);
+            rootAdditions.push([template, pd]);
         }
         return template;
     }
@@ -132,7 +126,7 @@ export default class PortalManager {
     expandPlaceholders(
         n: Node,
         rootDeletions: Array<Element>,
-        rootAdditions: Array<Element>,
+        rootAdditions: Array<[Element, PortalData]>,
     ): void {
         const stack: Array<ExpandPlaceholdersItem> = [{
             node: n,
@@ -171,32 +165,28 @@ export default class PortalManager {
         const parentPD = this.pdOf(parent);
         const childPD = this.pdOf(child);
         const childPlaceholder = childPD.createPlaceholder();
-        this.#elementMap.set(childPlaceholder, childPD);
         parentPD.template.appendChild(childPlaceholder);
     }
 
     rootAppendChild(root: Node, child: string): void {
         const pd = this.pdOf(child);
         const ph = pd.createPlaceholder();
-        this.#elementMap.set(ph, pd);
         root.appendChild(ph);
-        this.#roots.add(ph);
+        this.#roots.set(ph, pd);
     }
 
     render(): void {
         const deletions: Array<Element> = [];
-        const additions: Array<Element> = [];
-        for (let r of this.#roots) {
-            deletions.push(r);
-            r = this.replacePortalWithPlaceholder(r, deletions, additions);
-            additions.push(r);
+        const additions: Array<[Element, PortalData]> = [];
+        for (let [r, pd] of this.#roots) {
+            r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
             this.expandPlaceholders(r, deletions, additions);
         }
         for (const d of deletions) {
             this.#roots.delete(d);
         }
-        for (const a of additions) {
-            this.#roots.add(a);
+        for (const [a, pd] of additions) {
+            this.#roots.set(a, pd);
         }
     }
 }

@@ -51,7 +51,7 @@ var __classPrivateFieldGet = (undefined && undefined.__classPrivateFieldGet) || 
     if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
     return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 };
-var _PortalManager__nextID, _PortalManager_elementMap, _PortalManager_portalIDMap, _PortalManager_roots;
+var _PortalManager__nextID, _PortalManager_portalIDMap, _PortalManager_roots;
 const MAX_RECURSION_DEPTH = 10;
 class PortalPlaceholder extends HTMLElement {
     constructor() {
@@ -87,13 +87,11 @@ class PortalData {
 class PortalManager {
     constructor() {
         _PortalManager__nextID.set(this, void 0);
-        _PortalManager_elementMap.set(this, void 0);
         _PortalManager_portalIDMap.set(this, void 0);
         _PortalManager_roots.set(this, void 0);
         __classPrivateFieldSet(this, _PortalManager__nextID, 0, "f");
-        __classPrivateFieldSet(this, _PortalManager_elementMap, new Map(), "f");
         __classPrivateFieldSet(this, _PortalManager_portalIDMap, new Map(), "f");
-        __classPrivateFieldSet(this, _PortalManager_roots, new Set(), "f");
+        __classPrivateFieldSet(this, _PortalManager_roots, new Map(), "f");
     }
     pdOf(portalID) {
         const result = __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").get(portalID);
@@ -102,12 +100,12 @@ class PortalManager {
         }
         return result;
     }
-    pdOfElement(e) {
-        const pd = __classPrivateFieldGet(this, _PortalManager_elementMap, "f").get(e);
-        if (pd === undefined) {
+    pdOfRoot(root) {
+        const result = __classPrivateFieldGet(this, _PortalManager_roots, "f").get(root);
+        if (result === undefined) {
             throw new Error('pd undefined');
         }
-        return pd;
+        return result;
     }
     templateOf(portalID) {
         return this.pdOf(portalID).template;
@@ -125,27 +123,22 @@ class PortalManager {
     isPortalID(s) {
         return __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").has(s);
     }
-    replacePortalWithPlaceholder(p, rootDeletions, rootAdditions) {
-        const pd = this.pdOfElement(p);
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").delete(p);
+    replacePortalWithPlaceholder(e, pd, rootDeletions, rootAdditions) {
         const ph = pd.createPlaceholder();
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(ph, pd);
-        p.replaceWith(ph);
-        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(p)) {
-            rootDeletions.push(p);
-            rootAdditions.push(ph);
+        e.replaceWith(ph);
+        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(e)) {
+            rootDeletions.push(e);
+            rootAdditions.push([ph, pd]);
         }
         return ph;
     }
     replacePlaceholderWithElement(ph, rootDeletions, rootAdditions) {
         const pd = this.pdOf(ph.getPortalID());
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").delete(ph);
         const template = pd.cloneTemplate();
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(template, pd);
         ph.replaceWith(template);
         if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(ph)) {
             rootDeletions.push(ph);
-            rootAdditions.push(template);
+            rootAdditions.push([template, pd]);
         }
         return template;
     }
@@ -183,34 +176,30 @@ class PortalManager {
         const parentPD = this.pdOf(parent);
         const childPD = this.pdOf(child);
         const childPlaceholder = childPD.createPlaceholder();
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(childPlaceholder, childPD);
         parentPD.template.appendChild(childPlaceholder);
     }
     rootAppendChild(root, child) {
         const pd = this.pdOf(child);
         const ph = pd.createPlaceholder();
-        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(ph, pd);
         root.appendChild(ph);
-        __classPrivateFieldGet(this, _PortalManager_roots, "f").add(ph);
+        __classPrivateFieldGet(this, _PortalManager_roots, "f").set(ph, pd);
     }
     render() {
         const deletions = [];
         const additions = [];
-        for (let r of __classPrivateFieldGet(this, _PortalManager_roots, "f")) {
-            deletions.push(r);
-            r = this.replacePortalWithPlaceholder(r, deletions, additions);
-            additions.push(r);
+        for (let [r, pd] of __classPrivateFieldGet(this, _PortalManager_roots, "f")) {
+            r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
             this.expandPlaceholders(r, deletions, additions);
         }
         for (const d of deletions) {
             __classPrivateFieldGet(this, _PortalManager_roots, "f").delete(d);
         }
-        for (const a of additions) {
-            __classPrivateFieldGet(this, _PortalManager_roots, "f").add(a);
+        for (const [a, pd] of additions) {
+            __classPrivateFieldGet(this, _PortalManager_roots, "f").set(a, pd);
         }
     }
 }
-_PortalManager__nextID = new WeakMap(), _PortalManager_elementMap = new WeakMap(), _PortalManager_portalIDMap = new WeakMap(), _PortalManager_roots = new WeakMap();
+_PortalManager__nextID = new WeakMap(), _PortalManager_portalIDMap = new WeakMap(), _PortalManager_roots = new WeakMap();
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (PortalManager);
 
 portal_manager = __webpack_exports__;
