@@ -187,15 +187,19 @@ class PortalManager {
     render() {
         const deletions = [];
         const additions = [];
-        for (let [r, pd] of __classPrivateFieldGet(this, _PortalManager_roots, "f")) {
+        const process = () => {
+            for (const d of deletions) {
+                __classPrivateFieldGet(this, _PortalManager_roots, "f").delete(d);
+            }
+            for (const [a, pd] of additions) {
+                __classPrivateFieldGet(this, _PortalManager_roots, "f").set(a, pd);
+            }
+        };
+        for (let [r, pd] of new Map(__classPrivateFieldGet(this, _PortalManager_roots, "f"))) {
             r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
+            process();
             this.expandPlaceholders(r, deletions, additions);
-        }
-        for (const d of deletions) {
-            __classPrivateFieldGet(this, _PortalManager_roots, "f").delete(d);
-        }
-        for (const [a, pd] of additions) {
-            __classPrivateFieldGet(this, _PortalManager_roots, "f").set(a, pd);
+            process();
         }
     }
 }

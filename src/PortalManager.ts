@@ -178,15 +178,19 @@ export default class PortalManager {
     render(): void {
         const deletions: Array<Element> = [];
         const additions: Array<[Element, PortalData]> = [];
-        for (let [r, pd] of this.#roots) {
+        const process = () => {
+            for (const d of deletions) {
+                this.#roots.delete(d);
+            }
+            for (const [a, pd] of additions) {
+                this.#roots.set(a, pd);
+            }
+        }
+        for (let [r, pd] of new Map(this.#roots)) {
             r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
+            process();
             this.expandPlaceholders(r, deletions, additions);
-        }
-        for (const d of deletions) {
-            this.#roots.delete(d);
-        }
-        for (const [a, pd] of additions) {
-            this.#roots.set(a, pd);
+            process();
         }
     }
 }
