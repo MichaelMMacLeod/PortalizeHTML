@@ -64,3 +64,14 @@ test('re-rendering recursive div', () => {
     expect((document.body.childNodes[0] as HTMLDivElement).style.background).toStrictEqual('blue');
     expect((document.body.childNodes[0].childNodes[0] as HTMLDivElement).style.background).toStrictEqual('blue');
 });
+
+test('re-rendering does not increase root count', () => {
+    const pm = new PortalManager();
+    const d = pm.createElement('div');
+    pm.rootAppendChild(document.body, d);
+    expect(pm.unsafeRoots.size).toBe(1);
+    pm.render();
+    expect(pm.unsafeRoots.size).toBe(1);
+    pm.render();
+    expect(pm.unsafeRoots.size).toBe(1);
+});
