@@ -95,26 +95,44 @@ export default class PortalManager {
         return this.#portalIDMap.has(s);
     }
 
-    replacePortalWithPlaceholder(p: Element): PortalPlaceholder {
+    replacePortalWithPlaceholder(
+        p: Element,
+        rootDeletions: Array<Element>,
+        rootAdditions: Array<Element>,
+    ): PortalPlaceholder {
         const pd = this.pdOfElement(p);
         this.#elementMap.delete(p);
         const ph = pd.createPlaceholder();
         this.#elementMap.set(ph, pd);
         p.replaceWith(ph);
+        if (this.#roots.has(p)) {
+            rootDeletions.push(p);
+            rootAdditions.push(ph);
+        }
         return ph;
     }
 
-    replacePlaceholderWithElement(ph: PortalPlaceholder): Element {
+    replacePlaceholderWithElement(
+        ph: PortalPlaceholder,
+        rootDeletions: Array<Element>,
+        rootAdditions: Array<Element>,
+    ): Element {
         const pd = this.pdOf(ph.getPortalID());
         this.#elementMap.delete(ph);
         const template = pd.cloneTemplate();
         this.#elementMap.set(template, pd);
         ph.replaceWith(template);
+        if (this.#roots.has(ph)) {
+            rootDeletions.push(ph);
+            rootAdditions.push(template);
+        }
         return template;
     }
 
     expandPlaceholders(
         n: Node,
+        rootDeletions: Array<Element>,
+        rootAdditions: Array<Element>,
     ): void {
         const stack: Array<ExpandPlaceholdersItem> = [{
             node: n,
@@ -129,7 +147,7 @@ export default class PortalManager {
             let nextDepth = item.depth;
             if (node instanceof PortalPlaceholder) {
                 nextDepth++;
-                node = this.replacePlaceholderWithElement(node);
+                node = this.replacePlaceholderWithElement(node, rootDeletions, rootAdditions);
             }
             for (const c of node.childNodes) {
                 stack.push({
@@ -153,6 +171,7 @@ export default class PortalManager {
         const parentPD = this.pdOf(parent);
         const childPD = this.pdOf(child);
         const childPlaceholder = childPD.createPlaceholder();
+        this.#elementMap.set(childPlaceholder, childPD);
         parentPD.template.appendChild(childPlaceholder);
     }
 
@@ -165,9 +184,19 @@ export default class PortalManager {
     }
 
     render(): void {
+        const deletions: Array<Element> = [];
+        const additions: Array<Element> = [];
         for (let r of this.#roots) {
-            r = this.replacePortalWithPlaceholder(r);
-            this.expandPlaceholders(r);
+            deletions.push(r);
+            r = this.replacePortalWithPlaceholder(r, deletions, additions);
+            additions.push(r);
+            this.expandPlaceholders(r, deletions, additions);
+        }
+        for (const d of deletions) {
+            this.#roots.delete(d);
+        }
+        for (const a of additions) {
+            this.#roots.add(a);
         }
     }
 }

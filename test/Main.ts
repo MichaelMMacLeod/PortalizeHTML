@@ -49,16 +49,18 @@ test('div#0/div/div#1/p div#0/div/div#1/p', () => {
     expect(document.body).toStrictEqual(template);
 });
 
-test('recursive div', () => {
+test('re-rendering recursive div', () => {
     const pm = new PortalManager();
     const d = pm.createElement('div');
     const dTemplate = pm.templateOf(d) as HTMLDivElement;
-    dTemplate.style.width = '50%';
-    dTemplate.style.height = '100%';
-    dTemplate.style.background = 'rgba(0,0,0,0.1)';
-    dTemplate.style.display = 'flex';
+    dTemplate.style.background = 'red';
     pm.appendChild(d, d);
     pm.rootAppendChild(document.body, d);
     pm.render();
-    // expect(document.body.childNodes[0] as HTMLDiv)
+    expect((document.body.childNodes[0] as HTMLDivElement).style.background).toStrictEqual('red');
+    expect((document.body.childNodes[0].childNodes[0] as HTMLDivElement).style.background).toStrictEqual('red');
+    dTemplate.style.background = 'blue';
+    pm.render();
+    expect((document.body.childNodes[0] as HTMLDivElement).style.background).toStrictEqual('blue');
+    expect((document.body.childNodes[0].childNodes[0] as HTMLDivElement).style.background).toStrictEqual('blue');
 });

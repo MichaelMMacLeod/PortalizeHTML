@@ -84,32 +84,6 @@ class PortalData {
         return result;
     }
 }
-function cloneNodeFilterMapImpl(n, filterMap) {
-    const nClone = filterMap(n);
-    if (nClone.visitChildren) {
-        n.childNodes.forEach(cn => {
-            const cnClone = cloneNodeFilterMapImpl(cn, filterMap);
-            nClone.result.appendChild(cnClone.result);
-        });
-    }
-    return nClone;
-}
-function cloneNodeFilterMap(n, filterMap) {
-    return cloneNodeFilterMapImpl(n, filterMap).result;
-}
-function* ancestors(node) {
-    let n = node;
-    while (n !== null) {
-        n = n.parentNode;
-        if (n !== null) {
-            yield n;
-        }
-    }
-}
-function* ancestorsIncludingSelf(node) {
-    yield node;
-    yield* ancestors(node);
-}
 class PortalManager {
     constructor() {
         _PortalManager__nextID.set(this, void 0);
@@ -151,23 +125,31 @@ class PortalManager {
     isPortalID(s) {
         return __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").has(s);
     }
-    replacePortalWithPlaceholder(p) {
+    replacePortalWithPlaceholder(p, rootDeletions, rootAdditions) {
         const pd = this.pdOfElement(p);
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").delete(p);
         const ph = pd.createPlaceholder();
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(ph, pd);
         p.replaceWith(ph);
+        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(p)) {
+            rootDeletions.push(p);
+            rootAdditions.push(ph);
+        }
         return ph;
     }
-    replacePlaceholderWithElement(ph) {
+    replacePlaceholderWithElement(ph, rootDeletions, rootAdditions) {
         const pd = this.pdOf(ph.getPortalID());
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").delete(ph);
         const template = pd.cloneTemplate();
         __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(template, pd);
         ph.replaceWith(template);
+        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(ph)) {
+            rootDeletions.push(ph);
+            rootAdditions.push(template);
+        }
         return template;
     }
-    expandPlaceholders(n) {
+    expandPlaceholders(n, rootDeletions, rootAdditions) {
         const stack = [{
                 node: n,
                 depth: 0,
@@ -181,7 +163,7 @@ class PortalManager {
             let nextDepth = item.depth;
             if (node instanceof PortalPlaceholder) {
                 nextDepth++;
-                node = this.replacePlaceholderWithElement(node);
+                node = this.replacePlaceholderWithElement(node, rootDeletions, rootAdditions);
             }
             for (const c of node.childNodes) {
                 stack.push({
@@ -201,6 +183,7 @@ class PortalManager {
         const parentPD = this.pdOf(parent);
         const childPD = this.pdOf(child);
         const childPlaceholder = childPD.createPlaceholder();
+        __classPrivateFieldGet(this, _PortalManager_elementMap, "f").set(childPlaceholder, childPD);
         parentPD.template.appendChild(childPlaceholder);
     }
     rootAppendChild(root, child) {
@@ -211,9 +194,19 @@ class PortalManager {
         __classPrivateFieldGet(this, _PortalManager_roots, "f").add(ph);
     }
     render() {
+        const deletions = [];
+        const additions = [];
         for (let r of __classPrivateFieldGet(this, _PortalManager_roots, "f")) {
-            r = this.replacePortalWithPlaceholder(r);
-            this.expandPlaceholders(r);
+            deletions.push(r);
+            r = this.replacePortalWithPlaceholder(r, deletions, additions);
+            additions.push(r);
+            this.expandPlaceholders(r, deletions, additions);
+        }
+        for (const d of deletions) {
+            __classPrivateFieldGet(this, _PortalManager_roots, "f").delete(d);
+        }
+        for (const a of additions) {
+            __classPrivateFieldGet(this, _PortalManager_roots, "f").add(a);
         }
     }
 }

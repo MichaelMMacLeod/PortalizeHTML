@@ -19,26 +19,37 @@
     document.body.style.width = '100%';
     const PortalManager = portal_manager.default;
 
+
     const pm = new PortalManager();
     const d = pm.createElement('div');
     const dTemplate = pm.templateOf(d);
-    dTemplate.style.width = '50%';
-    dTemplate.style.height = '100%';
-    dTemplate.style.background = 'rgba(0,0,0,0.1)';
-    dTemplate.style.display = 'flex';
+    dTemplate.style.background = 'red';
     pm.appendChild(d, d);
     pm.rootAppendChild(document.body, d);
     pm.render();
+    dTemplate.style.background = 'blue';
+    pm.render();
+
+    // const pm = new PortalManager();
+    // const d = pm.createElement('div');
+    // const dTemplate = pm.templateOf(d);
+    // dTemplate.style.width = '50%';
+    // dTemplate.style.height = '100%';
+    // dTemplate.style.background = 'rgba(0,0,0,0.1)';
+    // dTemplate.style.display = 'flex';
+    // pm.appendChild(d, d);
+    // pm.rootAppendChild(document.body, d);
+    // pm.render();
     
-    setInterval(() => {
-      const template = pm.templateOf(d);
-      if (template.style.flexDirection === 'row') {
-        template.style.flexDirection = 'column';
-      } else {
-        template.style.flexDirection = 'row';
-      }
-      pm.render();
-    }, 1000);
+    // setInterval(() => {
+    //   const template = pm.templateOf(d);
+    //   if (template.style.flexDirection === 'row') {
+    //     template.style.flexDirection = 'column';
+    //   } else {
+    //     template.style.flexDirection = 'row';
+    //   }
+    //   pm.render();
+    // }, 1000);
 
     // const pm = new PortalManager();
     // let d = pm.createElementPortal('div');
