@@ -75,3 +75,16 @@ test('re-rendering does not increase root count', () => {
     pm.render();
     expect(pm.unsafeRoots.size).toBe(1);
 });
+
+test('render recursive portal with one nonrecursive child', () => {
+    const pm = new PortalManager();
+    const d = pm.createElement('div');
+    const p = pm.createElement('p');
+    pm.appendChild(d, p);
+    pm.appendChild(d, d);
+    pm.rootAppendChild(document.body, d);
+    pm.render();
+    expect(document.body.childNodes[0]).toBeInstanceOf(HTMLDivElement);
+    expect(document.body.childNodes[0].childNodes[0]).toBeInstanceOf(HTMLParagraphElement);
+    expect(document.body.childNodes[0].childNodes[1]).toBeInstanceOf(HTMLDivElement);
+});
