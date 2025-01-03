@@ -52,7 +52,7 @@ var __classPrivateFieldGet = (undefined && undefined.__classPrivateFieldGet) || 
     return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
 };
 var _PortalManager__nextID, _PortalManager_portalIDMap, _PortalManager_roots;
-const MAX_RECURSION_DEPTH = 10;
+const MAX_RECURSION_DEPTH = 100;
 class PortalPlaceholder extends HTMLElement {
     constructor() {
         super();
@@ -73,7 +73,6 @@ class PortalData {
     constructor(portalID, template) {
         this.portalID = portalID;
         this.template = template;
-        this.parents = new Set();
     }
     cloneTemplate() {
         return this.template.cloneNode(true);
@@ -123,26 +122,20 @@ class PortalManager {
     isPortalID(s) {
         return __classPrivateFieldGet(this, _PortalManager_portalIDMap, "f").has(s);
     }
-    replacePortalWithPlaceholder(e, pd, rootDeletions, rootAdditions) {
+    replacePortalWithPlaceholder(e, pd) {
         const ph = pd.createPlaceholder();
         e.replaceWith(ph);
-        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(e)) {
-            rootDeletions.push(e);
-            rootAdditions.push([ph, pd]);
-        }
         return ph;
     }
-    replacePlaceholderWithElement(ph, rootDeletions, rootAdditions) {
+    replacePlaceholderWithElement(ph) {
         const pd = this.pdOf(ph.getPortalID());
         const template = pd.cloneTemplate();
         ph.replaceWith(template);
-        if (__classPrivateFieldGet(this, _PortalManager_roots, "f").has(ph)) {
-            rootDeletions.push(ph);
-            rootAdditions.push([template, pd]);
-        }
         return template;
     }
-    expandPlaceholders(n, rootDeletions, rootAdditions) {
+    expandPlaceholders(n) {
+        let isTopLevel = true;
+        let result = n;
         const stack = [{
                 node: n,
                 depth: 0,
@@ -150,13 +143,13 @@ class PortalManager {
         while (stack.length > 0) {
             const item = stack.pop();
             if (item.depth >= MAX_RECURSION_DEPTH) {
-                return;
+                return result;
             }
             let node = item.node;
             let nextDepth = item.depth;
             if (node instanceof PortalPlaceholder) {
                 nextDepth++;
-                node = this.replacePlaceholderWithElement(node, rootDeletions, rootAdditions);
+                node = this.replacePlaceholderWithElement(node);
             }
             for (const c of node.childNodes) {
                 stack.push({
@@ -164,7 +157,12 @@ class PortalManager {
                     depth: nextDepth,
                 });
             }
+            if (isTopLevel) {
+                isTopLevel = false;
+                result = node;
+            }
         }
+        return result;
     }
     createElement(tagName, options) {
         const e = document.createElement(tagName, options);
@@ -185,22 +183,13 @@ class PortalManager {
         __classPrivateFieldGet(this, _PortalManager_roots, "f").set(ph, pd);
     }
     render() {
-        const deletions = [];
-        const additions = [];
-        const process = () => {
-            for (const d of deletions) {
-                __classPrivateFieldGet(this, _PortalManager_roots, "f").delete(d);
-            }
-            for (const [a, pd] of additions) {
-                __classPrivateFieldGet(this, _PortalManager_roots, "f").set(a, pd);
-            }
-        };
-        for (let [r, pd] of new Map(__classPrivateFieldGet(this, _PortalManager_roots, "f"))) {
-            r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
-            process();
-            this.expandPlaceholders(r, deletions, additions);
-            process();
+        let newRoots = new Map();
+        for (let [r, pd] of __classPrivateFieldGet(this, _PortalManager_roots, "f")) {
+            const ph = this.replacePortalWithPlaceholder(r, pd);
+            const newR = this.expandPlaceholders(ph);
+            newRoots.set(newR, pd);
         }
+        __classPrivateFieldSet(this, _PortalManager_roots, newRoots, "f");
     }
 }
 _PortalManager__nextID = new WeakMap(), _PortalManager_portalIDMap = new WeakMap(), _PortalManager_roots = new WeakMap();

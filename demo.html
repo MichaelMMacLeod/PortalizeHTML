@@ -32,28 +32,23 @@
 
     const pm = new PortalManager();
     const d = pm.createElement('div');
+    const p = pm.createElement('p');
+    const pTemplate = pm.templateOf(p);
+    pTemplate.textContent = 'i contain multitudes';
+    pm.appendChild(d, p);
     const dTemplate = pm.templateOf(d);
-    dTemplate.style.width = '50%';
+    dTemplate.style.width = '90%';
     dTemplate.style.height = '100%';
     dTemplate.style.background = 'rgba(0,0,0,0.1)';
     dTemplate.style.display = 'flex';
     pm.appendChild(d, d);
     pm.rootAppendChild(document.body, d);
-
-    console.log(pm.unsafeRoots.size);
-    mutate();
-    console.log(pm.unsafeRoots.size);
-    mutate();
-    console.log(pm.unsafeRoots.size);
-    mutate();
-    console.log(pm.unsafeRoots.size);
-    mutate();
-    console.log(pm.unsafeRoots.size);
+    pm.render();
     
     function mutate() {
       const template = pm.templateOf(d);
       if (template.style.flexDirection === 'row') {
-        template.style.flexDirection = 'column';
+        template.style.flexDirection = 'row-reverse';
       } else {
         template.style.flexDirection = 'row';
       }

@@ -1,4 +1,4 @@
-const MAX_RECURSION_DEPTH = 10;
+const MAX_RECURSION_DEPTH = 100;
 
 export class PortalPlaceholder extends HTMLElement {
     constructor() {
@@ -22,12 +22,10 @@ customElements.define('portal-placeholder', PortalPlaceholder);
 class PortalData {
     portalID: string;
     template: Element;
-    parents: Set<string>;
 
     constructor(portalID: string, template: Element) {
         this.portalID = portalID;
         this.template = template;
-        this.parents = new Set();
     }
 
     cloneTemplate(): Element {
@@ -96,38 +94,26 @@ export default class PortalManager {
     replacePortalWithPlaceholder(
         e: Element,
         pd: PortalData,
-        rootDeletions: Array<Element>,
-        rootAdditions: Array<[Element, PortalData]>,
     ): PortalPlaceholder {
         const ph = pd.createPlaceholder();
         e.replaceWith(ph);
-        if (this.#roots.has(e)) {
-            rootDeletions.push(e);
-            rootAdditions.push([ph, pd]);
-        }
         return ph;
     }
 
     replacePlaceholderWithElement(
         ph: PortalPlaceholder,
-        rootDeletions: Array<Element>,
-        rootAdditions: Array<[Element, PortalData]>,
     ): Element {
         const pd = this.pdOf(ph.getPortalID());
         const template = pd.cloneTemplate();
         ph.replaceWith(template);
-        if (this.#roots.has(ph)) {
-            rootDeletions.push(ph);
-            rootAdditions.push([template, pd]);
-        }
         return template;
     }
 
     expandPlaceholders(
         n: Node,
-        rootDeletions: Array<Element>,
-        rootAdditions: Array<[Element, PortalData]>,
-    ): void {
+    ): Node {
+        let isTopLevel = true;
+        let result = n;
         const stack: Array<ExpandPlaceholdersItem> = [{
             node: n,
             depth: 0,
@@ -135,13 +121,13 @@ export default class PortalManager {
         while (stack.length > 0) {
             const item = stack.pop() as ExpandPlaceholdersItem;
             if (item.depth >= MAX_RECURSION_DEPTH) {
-                return;
+                return result;
             }
             let node = item.node;
             let nextDepth = item.depth;
             if (node instanceof PortalPlaceholder) {
                 nextDepth++;
-                node = this.replacePlaceholderWithElement(node, rootDeletions, rootAdditions);
+                node = this.replacePlaceholderWithElement(node);
             }
             for (const c of node.childNodes) {
                 stack.push({
@@ -149,7 +135,12 @@ export default class PortalManager {
                     depth: nextDepth,
                 });
             }
+            if (isTopLevel) {
+                isTopLevel = false;
+                result = node;
+            }
         }
+        return result;
     }
 
     createElement<K extends keyof HTMLElementTagNameMap>(
@@ -176,21 +167,12 @@ export default class PortalManager {
     }
 
     render(): void {
-        const deletions: Array<Element> = [];
-        const additions: Array<[Element, PortalData]> = [];
-        const process = () => {
-            for (const d of deletions) {
-                this.#roots.delete(d);
-            }
-            for (const [a, pd] of additions) {
-                this.#roots.set(a, pd);
-            }
+        let newRoots = new Map();
+        for (let [r, pd] of this.#roots) {
+            const ph = this.replacePortalWithPlaceholder(r, pd);
+            const newR = this.expandPlaceholders(ph);
+            newRoots.set(newR, pd);
         }
-        for (let [r, pd] of new Map(this.#roots)) {
-            r = this.replacePortalWithPlaceholder(r, pd, deletions, additions);
-            process();
-            this.expandPlaceholders(r, deletions, additions);
-            process();
-        }
+        this.#roots = newRoots;
     }
 }
