@@ -19,85 +19,40 @@
     document.body.style.width = '100%';
     const PortalManager = portal_manager.default;
 
-
-    // const pm = new PortalManager();
-    // const d = pm.createElement('div');
-    // const dTemplate = pm.templateOf(d);
-    // dTemplate.style.background = 'red';
-    // pm.appendChild(d, d);
-    // pm.rootAppendChild(document.body, d);
-    // pm.render();
-    // dTemplate.style.background = 'blue';
-    // pm.render();
-
     const pm = new PortalManager();
     const d = pm.createElement('div');
     const p = pm.createElement('p');
-    const pTemplate = pm.templateOf(p);
-    pTemplate.textContent = 'i contain multitudes';
     pm.appendChild(d, p);
-    const dTemplate = pm.templateOf(d);
-    dTemplate.style.width = '90%';
-    dTemplate.style.height = '100%';
-    dTemplate.style.background = 'rgba(0,0,0,0.1)';
-    dTemplate.style.display = 'flex';
     pm.appendChild(d, d);
     pm.rootAppendChild(document.body, d);
     pm.render();
+
+    // const pm = new PortalManager();
+    // const d = pm.createElement('div');
+    // const p = pm.createElement('p');
+    // const pTemplate = pm.templateOf(p);
+    // pTemplate.textContent = 'i contain multitudes';
+    // pm.appendChild(d, p);
+    // const dTemplate = pm.templateOf(d);
+    // dTemplate.style.width = '90%';
+    // dTemplate.style.height = '100%';
+    // dTemplate.style.background = 'rgba(0,0,0,0.1)';
+    // dTemplate.style.display = 'flex';
+    // pm.appendChild(d, d);
+    // pm.rootAppendChild(document.body, d);
+    // pm.render();
     
-    function mutate() {
-      const template = pm.templateOf(d);
-      if (template.style.flexDirection === 'row') {
-        template.style.flexDirection = 'row-reverse';
-      } else {
-        template.style.flexDirection = 'row';
-      }
-      pm.render();
-    }
+    // function mutate() {
+    //   const template = pm.templateOf(d);
+    //   if (template.style.flexDirection === 'row') {
+    //     template.style.flexDirection = 'row-reverse';
+    //   } else {
+    //     template.style.flexDirection = 'row';
+    //   }
+    //   pm.render();
+    // }
 
     // setInterval(mutate, 1000);
-
-    // const pm = new PortalManager();
-    // let d = pm.createElementPortal('div');
-    // d.style.width = '60%';
-    // d.style.height = '100%';
-    // d.style.background = 'rgba(0,0,0,0.1)';
-    // d.style.display = 'flex';
-    // d.style.flexDirection = 'row';
-    // pm.observeNodeChanged(d);
-    // d = pm.appendChild(d, d);
-    // d = pm.appendChild(document.body, d);
-
-
-
-    // const pm = new PortalManager();
-    // const d = document.createElement('div');
-    // d.style.width = '100%';
-    // d.style.display = 'flex';
-    // d.style.flexDirection = 'row';
-    // d.style.fontSize = '0.5em';
-    // d.style.marginTop = 'auto';
-    // d.style.marginBottom = 'auto';
-    // d.style.justifyContent = 'center';
-    // const b = document.createElement('img');
-    // b.style.width = '50%';
-    // b.style.height = '50%';
-    // b.src = 'https://senseis.xmp.net/diagrams/15/1767305ca690294311ed6e1847b8f8a4.png';
-    // b.style.margin = '1em';
-    // d.appendChild(b);
-    // const p1 = pm.appendChildPortal(document.body, d);
-    // const p2 = pm.appendChildPortal(p1, p1);
-    
-    // function randomColor() {
-    //   return '#' + Math.floor(Math.random()*16777215).toString(16);
-    // }
-    // function changeColors() {
-    //   pe.childNodes[0].
-    //   b.style.background = randomColor();
-    // }
-    // debugger;
-    // // // p1.appendChild(p1);
-    // // // p.appendChild(p);
   </script>
 </body>
 

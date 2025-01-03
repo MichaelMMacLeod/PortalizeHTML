@@ -120,20 +120,19 @@ export default class PortalManager {
         }];
         while (stack.length > 0) {
             const item = stack.pop() as ExpandPlaceholdersItem;
-            if (item.depth >= MAX_RECURSION_DEPTH) {
-                return result;
-            }
             let node = item.node;
             let nextDepth = item.depth;
             if (node instanceof PortalPlaceholder) {
                 nextDepth++;
                 node = this.replacePlaceholderWithElement(node);
             }
-            for (const c of node.childNodes) {
-                stack.push({
-                    node: c,
-                    depth: nextDepth,
-                });
+            if (item.depth < MAX_RECURSION_DEPTH) {
+                for (const c of node.childNodes) {
+                    stack.push({
+                        node: c,
+                        depth: nextDepth,
+                    });
+                }
             }
             if (isTopLevel) {
                 isTopLevel = false;
