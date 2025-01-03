@@ -2,57 +2,24 @@
 <html>
 
 <head>
-  <title>Demo</title>
-  <style>
-    html {
-      color-scheme: light dark;
-    }
-  </style>
+  <title>PortalizeHTML Demo</title>
 </head>
 
-<body>
+<body style="width: 100vw; height: 100vh; margin: 0; display: flex;">
   <script src="dist/portal_manager.js"></script>
   <script>
-    document.documentElement.style.width = '100%';
-    document.documentElement.style.height = '100%';
-    document.body.style.height = '100%';
-    document.body.style.width = '100%';
     const PortalManager = portal_manager.default;
-
     const pm = new PortalManager();
     const d = pm.createElement('div');
-    const p = pm.createElement('p');
-    pm.appendChild(d, p);
+    const dTemplate = pm.templateOf(d);
+    dTemplate.style.width = '80%';
+    dTemplate.style.height = '80%';
+    dTemplate.style.background = 'rgba(0,0,0,0.1)';
+    dTemplate.style.display = 'flex';
+    dTemplate.style.margin = 'auto';
     pm.appendChild(d, d);
     pm.rootAppendChild(document.body, d);
     pm.render();
-
-    // const pm = new PortalManager();
-    // const d = pm.createElement('div');
-    // const p = pm.createElement('p');
-    // const pTemplate = pm.templateOf(p);
-    // pTemplate.textContent = 'i contain multitudes';
-    // pm.appendChild(d, p);
-    // const dTemplate = pm.templateOf(d);
-    // dTemplate.style.width = '90%';
-    // dTemplate.style.height = '100%';
-    // dTemplate.style.background = 'rgba(0,0,0,0.1)';
-    // dTemplate.style.display = 'flex';
-    // pm.appendChild(d, d);
-    // pm.rootAppendChild(document.body, d);
-    // pm.render();
-    
-    // function mutate() {
-    //   const template = pm.templateOf(d);
-    //   if (template.style.flexDirection === 'row') {
-    //     template.style.flexDirection = 'row-reverse';
-    //   } else {
-    //     template.style.flexDirection = 'row';
-    //   }
-    //   pm.render();
-    // }
-
-    // setInterval(mutate, 1000);
   </script>
 </body>
 
